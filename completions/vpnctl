@@ -1,31 +1,52 @@
-# ~/.bash_completion.d/vpnctl
+# /etc/bash_completion.d/vpnctl
 
 _vpnctl_completions(){
-  local cur prev profiles
+  local cur prev profiles config_file yq_cmd
   COMPREPLY=()
   cur="${COMP_WORDS[COMP_CWORD]}"
   prev="${COMP_WORDS[COMP_CWORD-1]}"
+  config_file="${XDG_CONFIG_HOME:-$HOME/.config}/vpn_config.yaml"
+
+  # detect which yq syntax to use
+  if yq --version 2>&1 | grep -q 'eval'; then
+    yq_cmd="yq eval"
+  else
+    yq_cmd="yq"
+  fi
+
+  # file completion for -o/--output
+  if [[ "$prev" == "-o" || "$prev" == "--output" ]]; then
+    COMPREPLY=( $(compgen -f -- "$cur") )
+    return
+  fi
+
+  # file completion for -i/--input
+  if [[ "$prev" == "-i" || "$prev" == "--input" ]]; then
+    COMPREPLY=( $(compgen -f -- "$cur") )
+    return
+  fi
 
   # profile keys after -p/--profile
   if [[ "$prev" == "-p" || "$prev" == "--profile" ]]; then
-    if yq --version 2>&1 | grep -q 'eval'; then
-      profiles=$(yq eval '.vpn | keys | .[]' "$HOME/.config/vpn_config.yaml")
-    else
-      profiles=$(yq '.vpn | keys | .[]' "$HOME/.config/vpn_config.yaml")
-    fi
+    [[ -f "$config_file" ]] || return
+    profiles=$($yq_cmd '.vpn | keys | .[]' "$config_file")
     COMPREPLY=( $(compgen -W "$profiles" -- "$cur") )
     return
   fi
 
   # flags
   if [[ "$cur" == -* ]]; then
-    COMPREPLY=( $(compgen -W "-d -v -k -p --debug --verbose --kill --profile" -- "$cur") )
+    COMPREPLY=( $(compgen -W "-d -v -k -p -o -i --debug --verbose --kill --profile --output --input" -- "$cur") )
     return
   fi
 
   # actions in first position
   if [[ $COMP_CWORD -eq 1 ]]; then
-    COMPREPLY=( $(compgen -W "start up stop down status" -- "$cur") )
+    COMPREPLY=( $(compgen -W "start up stop down status backup restore" -- "$cur") )
+    return
   fi
 }
+
+# enable filename completion by default and register the function
+complete -o filenames -F _vpnctl_completions vpnctl
 

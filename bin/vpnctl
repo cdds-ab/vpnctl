@@ -2,11 +2,13 @@
 #
 # vpnctl — manage multiple OpenVPN profiles via a YAML config.
 # Supports:
-#   -d/--debug, -v/--verbose   debug mode (stream logs)
-#   -k/--kill                  cleanup all old VPN interfaces & routes before start
-#   -p/--profile <key>         choose profile
-# Actions: start|up, stop|down, status
-# Requires: yq (MikeFarah/yq or python-yq), openvpn, sudo
+#   -d/--debug, -v/--verbose       stream logs without tearing down on Ctrl-C
+#   -k/--kill                      purge old tun* devices, routes, DNS caches & openvpn procs
+#   -p/--profile <key>             select profile
+#   -o/--output <file>             output path for backup (default vpn-backup.tar.gz.gpg)
+#   -i/--input <file>              input path for restore  (default vpn-backup.tar.gz.gpg)
+# Actions: start|up, stop|down, status, backup, restore
+# Requires: yq (Go-yq or python-yq), openvpn, sudo, gpg (for backup/restore)
 
 set -euo pipefail
 
@@ -14,9 +16,11 @@ CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/vpn_config.yaml"
 DEBUG=false
 KILL_OLD=false
 PROFILE_KEY=""
+OUTPUT_FILE=""
+INPUT_FILE=""
 ACTION=""
 
-# ─── Parse args ─────────────────────────────────────────────────────────────
+# ─── Argumente parsen ───────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -d|--debug|-v|--verbose)
@@ -27,24 +31,59 @@ while [[ $# -gt 0 ]]; do
       shift
       [[ -z "$1" || "$1" == -* ]] && { echo "❌ Missing profile after -p" >&2; exit 1; }
       PROFILE_KEY="$1"; shift ;;
-    start|up|stop|down|status)
+    -o|--output)
+      shift
+      [[ -z "$1" || "$1" == -* ]] && { echo "❌ Missing file after -o/--output" >&2; exit 1; }
+      OUTPUT_FILE="$1"; shift ;;
+    -i|--input)
+      shift
+      [[ -z "$1" || "$1" == -* ]] && { echo "❌ Missing file after -i/--input" >&2; exit 1; }
+      INPUT_FILE="$1"; shift ;;
+    start|up|stop|down|status|backup|restore)
       [[ -n "$ACTION" ]] && { echo "❌ Multiple actions: $ACTION and $1" >&2; exit 1; }
       ACTION="$1"; shift ;;
     *)
       echo "❌ Unknown argument: $1" >&2
-      echo "Usage: vpnctl [-d|-v] [-k] [-p profile] <start|up|stop|down|status>" >&2
+      echo "Usage: vpnctl [-d|-v] [-k] [-p <profile>] [-o <file>] [-i <file>] <start|up|stop|down|status|backup|restore>" >&2
       exit 1 ;;
   esac
 done
 
-# ─── Require an action ──────────────────────────────────────────────────────
+# ─── Action muss gesetzt sein ───────────────────────────────────────────────
 [[ -n "$ACTION" ]] || { echo "❌ No action specified." >&2; exit 1; }
 
-# ─── Preconditions ─────────────────────────────────────────────────────────
+#── Funktionen für Backup/Restore ─────────────────────────────────────────────
+backup_cfg(){
+  local out="${OUTPUT_FILE:-vpn-backup.tar.gz.gpg}"
+  echo "🔐 Creating encrypted backup → $out"
+  cd "$HOME"
+  tar czpf - .config/vpn_config.yaml .vpn | \
+    gpg --batch --yes --cipher-algo AES256 -c -o "$out"
+  echo "✅ Backup written to $out"
+}
+
+restore_cfg(){
+  local in="${INPUT_FILE:-vpn-backup.tar.gz.gpg}"
+  [[ -f "$in" ]] || { echo "❌ Backup file '$in' not found."; exit 1; }
+  echo "🔓 Restoring from encrypted backup → $in"
+  cd "$HOME"
+  gpg --batch -d "$in" | tar xzpf -
+  echo "✅ Configuration restored."
+}
+
+# ─── Bei backup/restore direkt aussteigen ────────────────────────────────────
+case "$ACTION" in
+  backup)  backup_cfg; exit 0 ;;
+  restore) restore_cfg; exit 0 ;;
+esac
+
+# ─── Ab hier nur VPN-Befehle (start/stop/status) ─────────────────────────────
+
+# Common prechecks
 [[ -f "$CONFIG_FILE" ]] || { echo "❌ Config file not found: $CONFIG_FILE" >&2; exit 1; }
 command -v yq &>/dev/null || { echo "❌ 'yq' not found; please install." >&2; exit 1; }
 
-# ─── Auto-select first profile if none specified ────────────────────────────
+# Erstes Profil wählen, falls keines gesetzt
 if [[ -z "$PROFILE_KEY" ]]; then
   if yq --version 2>&1 | grep -q 'eval'; then
     RAW_KEY=$(yq eval -r '.vpn | keys | .[0]' "$CONFIG_FILE")
@@ -54,7 +93,7 @@ if [[ -z "$PROFILE_KEY" ]]; then
   PROFILE_KEY="${RAW_KEY//\"/}"
 fi
 
-# ─── Load raw .ovpn path from YAML ──────────────────────────────────────────
+# Pfad aus YAML laden und aufbereiten
 if yq --version 2>&1 | grep -q 'eval'; then
   RAW_CONF=$(yq eval -r ".vpn.${PROFILE_KEY}.config" "$CONFIG_FILE" 2>/dev/null)
 else
@@ -66,35 +105,33 @@ fi
   echo "❌ No config for profile '$PROFILE_KEY' in $CONFIG_FILE" >&2; exit 1
 }
 
-# ─── Normalize & expand path ────────────────────────────────────────────────
+# Normalize & expand (~, $HOME, etc.)
 RAW_CONF="${RAW_CONF/#\~/$HOME}"
 VPN_CONF=$(eval echo "\"$RAW_CONF\"")
 [[ -f "$VPN_CONF" ]] || { echo "❌ VPN config not found: $VPN_CONF" >&2; exit 1; }
 
-# ─── Paths & helper ─────────────────────────────────────────────────────────
+# Laufzeit-Pfade
 USER_ID=$(id -u)
 PID_FILE="/run/user/${USER_ID}/${PROFILE_KEY}.pid"
 LOG_FILE="/tmp/${PROFILE_KEY}.log"
 
 prepare_sudo(){
-  sudo -n true &>/dev/null || { echo "🔒 Requesting sudo credentials..."; sudo -v || { echo "❌ sudo auth failed." >&2; exit 1; }; }
+  sudo -n true &>/dev/null || {
+    echo "🔒 Requesting sudo credentials..."
+    sudo -v || { echo "❌ sudo authentication failed." >&2; exit 1; }
+  }
 }
 
-# ─── start_vpn ───────────────────────────────────────────────────────────────
 start_vpn(){
-  # ── optional cleanup of old VPNs ─────────────────────────────────────────
   if [[ "$KILL_OLD" == true ]]; then
-    echo "🧹 Cleaning up all tun* interfaces, routes, DNS caches and OpenVPN processes…"
-    # delete all tun* devices
+    echo "🧹 Purging old tun* devices, routes, DNS caches & openvpn procs…"
     for dev in $(ls /sys/class/net | grep '^tun'); do
-      sudo ip link delete "$dev" &>/dev/null || true
-      sudo ip route flush dev "$dev" &>/dev/null || true
+      sudo ip link delete "$dev" 2>/dev/null || true
+      sudo ip route flush dev "$dev" 2>/dev/null || true
     done
-    # flush route cache and DNS
-    sudo ip route flush cache &>/dev/null || true
-    resolvectl flush-caches &>/dev/null || true
-    # kill any lingering openvpn
-    sudo pkill openvpn &>/dev/null || true
+    sudo ip route flush cache 2>/dev/null || true
+    resolvectl flush-caches 2>/dev/null || true
+    sudo pkill openvpn 2>/dev/null || true
   fi
 
   if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" &>/dev/null; then
@@ -104,14 +141,13 @@ start_vpn(){
 
   prepare_sudo
   echo "🚀 Starting '$PROFILE_KEY' → $VPN_CONF"
-
   nohup sudo openvpn --config "$VPN_CONF" >"$LOG_FILE" 2>&1 &
   echo $! >"$PID_FILE"
   echo "✅ Started (PID $(<"$PID_FILE")). Logs at $LOG_FILE"
 
   if [[ "$DEBUG" == true ]]; then
-    echo "--- Debug mode: streaming logs (Ctrl+C stops debug only) ---"
-    trap 'echo "🛑 Exiting debug mode"; kill "$TAIL_PID" 2>/dev/null; exit 0' SIGINT
+    echo "--- Debug: streaming logs (Ctrl+C stops debug only) ---"
+    trap 'echo "🛑 Exiting debug"; kill "$TAIL_PID" 2>/dev/null; exit 0' SIGINT
     tail -n +1 -F "$LOG_FILE" &
     TAIL_PID=$!
     wait "$TAIL_PID"
@@ -119,7 +155,6 @@ start_vpn(){
   fi
 }
 
-# ─── stop_vpn ────────────────────────────────────────────────────────────────
 stop_vpn(){
   if [[ -f "$PID_FILE" ]]; then
     PID=$(<"$PID_FILE")
@@ -136,7 +171,6 @@ stop_vpn(){
   fi
 }
 
-# ─── status_vpn ─────────────────────────────────────────────────────────────
 status_vpn(){
   if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" &>/dev/null; then
     echo "✅ '$PROFILE_KEY' is running (PID $(<"$PID_FILE"))."
@@ -145,7 +179,6 @@ status_vpn(){
   fi
 }
 
-# ─── Dispatch ───────────────────────────────────────────────────────────────
 case "$ACTION" in
   start|up)   start_vpn ;;
   stop|down)  stop_vpn  ;;
