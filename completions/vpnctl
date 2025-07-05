@@ -1,0 +1,33 @@
+# ~/.bash_completion.d/vpnctl
+
+_vpnctl_completions(){
+  local cur prev profiles
+  COMPREPLY=()
+  cur="${COMP_WORDS[COMP_CWORD]}"
+  prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+  # Profile key completion after -p/--profile
+  if [[ "$prev" == "-p" || "$prev" == "--profile" ]]; then
+    if yq --version 2>&1 | grep -q 'eval'; then
+      profiles=$(yq eval '.vpn | keys | .[]' "$HOME/.config/vpn_config.yaml")
+    else
+      profiles=$(yq '.vpn | keys | .[]' "$HOME/.config/vpn_config.yaml")
+    fi
+    COMPREPLY=( $(compgen -W "$profiles" -- "$cur") )
+    return
+  fi
+
+  # Flags
+  if [[ "$cur" == -* ]]; then
+    COMPREPLY=( $(compgen -W "-d -v -p --debug --verbose --profile" -- "$cur") )
+    return
+  fi
+
+  # Actions in first position
+  if [[ $COMP_CWORD -eq 1 ]]; then
+    COMPREPLY=( $(compgen -W "start up stop down status" -- "$cur") )
+  fi
+}
+
+complete -F _vpnctl_completions vpnctl
+

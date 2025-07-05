@@ -1,0 +1,10 @@
+# Sample VPN config for vpnctl
+# Copy to ~/.config/vpn_config.yaml and adjust paths.
+
+vpn:
+  default:
+    config: "$HOME/.vpn/default.ovpn"
+
+  other:
+    config: "~/vpn/other.ovpn"
+
