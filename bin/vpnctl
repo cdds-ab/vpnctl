@@ -52,13 +52,15 @@ if ! command -v yq &>/dev/null; then
   exit 1
 fi
 
-# If no profile key, pick the first one
+# If no profile key was passed, pick the first one—and strip any quotes
 if [[ -z "$PROFILE_KEY" ]]; then
   if yq --version 2>&1 | grep -q 'eval'; then
-    PROFILE_KEY=$(yq eval '.vpn | keys | .[0]' "$CONFIG_FILE")
+    RAW_KEY=$(yq eval -r '.vpn | keys | .[0]' "$CONFIG_FILE")
   else
-    PROFILE_KEY=$(yq '.vpn | keys | .[0]' "$CONFIG_FILE")
+    RAW_KEY=$(yq '.vpn | keys | .[0]' "$CONFIG_FILE")
   fi
+  # remove any surrounding " characters
+  PROFILE_KEY=$(echo "$RAW_KEY" | sed -e 's/^"//' -e 's/"$//')
 fi
 
 # Load raw path for this profile
