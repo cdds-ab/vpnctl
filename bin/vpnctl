@@ -1,113 +1,118 @@
 #!/usr/bin/env bash
 #
-# vpnctl — manage any number of VPN profiles described in YAML.
+# vpnctl — manage multiple OpenVPN profiles via a YAML config.
 # Supports: -d/--debug or -v/--verbose, -p/--profile <key>, actions: start|up, stop|down, status
-# Requires: yq (MikeFarah/yq or python-yq)
+# Requires: yq (MikeFarah/yq or python-yq), openvpn, sudo
+
+set -euo pipefail
 
 CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/vpn_config.yaml"
-
 DEBUG=false
 PROFILE_KEY=""
 ACTION=""
 
-# Parse args (order‐insensitive)
+# ─── Argument parsing ────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -d|--debug|-v|--verbose)
-      DEBUG=true; shift;;
+      DEBUG=true; shift ;;
     -p|--profile)
       shift
-      if [[ -z "$1" || "$1" == -* ]]; then
-        echo "❌ Missing profile key after -p" >&2; exit 1
-      fi
-      PROFILE_KEY="$1"; shift;;
+      [[ -z "$1" || "$1" == -* ]] && { echo "❌ Missing profile key after -p" >&2; exit 1; }
+      PROFILE_KEY="$1"; shift ;;
     start|up|stop|down|status)
-      if [[ -n "$ACTION" ]]; then
-        echo "❌ Multiple actions: '$ACTION' and '$1'" >&2; exit 1
-      fi
-      ACTION="$1"; shift;;
+      [[ -n "$ACTION" ]] && { echo "❌ Multiple actions: $ACTION and $1" >&2; exit 1; }
+      ACTION="$1"; shift ;;
     *)
       echo "❌ Unknown argument: $1" >&2
       echo "Usage: vpnctl [-d|-v] [-p profile] <start|up|stop|down|status>" >&2
-      exit 1;;
+      exit 1 ;;
   esac
 done
 
-# Require action
-if [[ -z "$ACTION" ]]; then
-  echo "❌ No action specified." >&2
-  echo "Usage: vpnctl [-d|-v] [-p profile] <start|up|stop|down|status>" >&2
-  exit 1
-fi
+# ─── Require an action ──────────────────────────────────────────────────────
+[[ -n "$ACTION" ]] || { echo "❌ No action specified." >&2; exit 1; }
 
-# Config file exists?
-if [[ ! -f "$CONFIG_FILE" ]]; then
-  echo "❌ Config file not found: $CONFIG_FILE" >&2
-  exit 1
-fi
+# ─── Preconditions ─────────────────────────────────────────────────────────
+[[ -f "$CONFIG_FILE" ]] || { echo "❌ Config file not found: $CONFIG_FILE" >&2; exit 1; }
+command -v yq &>/dev/null || { echo "❌ 'yq' not found; please install." >&2; exit 1; }
 
-# yq must exist
-if ! command -v yq &>/dev/null; then
-  echo "❌ 'yq' not found; please install." >&2
-  exit 1
-fi
-
-# If no profile key was passed, pick the first one—and strip any quotes
+# ─── Auto-select first profile if none specified ────────────────────────────
 if [[ -z "$PROFILE_KEY" ]]; then
   if yq --version 2>&1 | grep -q 'eval'; then
     RAW_KEY=$(yq eval -r '.vpn | keys | .[0]' "$CONFIG_FILE")
   else
     RAW_KEY=$(yq '.vpn | keys | .[0]' "$CONFIG_FILE")
   fi
-  # remove any surrounding " characters
-  PROFILE_KEY=$(echo "$RAW_KEY" | sed -e 's/^"//' -e 's/"$//')
+  PROFILE_KEY="${RAW_KEY//\"/}"
 fi
 
-# Load raw path for this profile
+# ─── Load raw .ovpn path from YAML ──────────────────────────────────────────
 if yq --version 2>&1 | grep -q 'eval'; then
-  RAW_CONF=$(yq eval ".vpn.${PROFILE_KEY}.config" "$CONFIG_FILE" 2>/dev/null)
+  RAW_CONF=$(yq eval -r ".vpn.${PROFILE_KEY}.config" "$CONFIG_FILE" 2>/dev/null)
 else
   RAW_CONF=$(yq ".vpn.${PROFILE_KEY}.config" "$CONFIG_FILE" 2>/dev/null)
+  RAW_CONF="${RAW_CONF%\"}"  # strip quotes if python-yq wrapped them
+  RAW_CONF="${RAW_CONF#\"}"
+  RAW_CONF="${RAW_CONF%\'}"
+  RAW_CONF="${RAW_CONF#\'}"
 fi
-
-# Validate
-if [[ -z "$RAW_CONF" || "$RAW_CONF" == "null" ]]; then
+[[ -n "$RAW_CONF" && "$RAW_CONF" != "null" ]] || {
   echo "❌ No config for profile '$PROFILE_KEY' in $CONFIG_FILE" >&2
   exit 1
-fi
+}
 
-# Expand ~ and $HOME
-VPN_CONF=$(eval echo "$RAW_CONF")
+# ─── Normalize & expand path ────────────────────────────────────────────────
+# 1) Replace leading "~/…" with "$HOME/…"
+RAW_CONF="${RAW_CONF/#\~/$HOME}"
+# 2) Expand any other $VAR references
+VPN_CONF=$(eval echo "\"$RAW_CONF\"")
 
-# Paths
+# Validate final path
+[[ -f "$VPN_CONF" ]] || { echo "❌ VPN config file not found: $VPN_CONF" >&2; exit 1; }
+
+# ─── Setup runtime paths & helper ───────────────────────────────────────────
 USER_ID=$(id -u)
 PID_FILE="/run/user/${USER_ID}/${PROFILE_KEY}.pid"
 LOG_FILE="/tmp/${PROFILE_KEY}.log"
 
-# Get sudo up front
 prepare_sudo(){
-  if ! sudo -n true &>/dev/null; then
-    echo "🔒 Requesting sudo credentials..."
-    sudo -v || { echo "❌ Sudo auth failed." >&2; exit 1; }
-  fi
+  sudo -n true &>/dev/null || { 
+    echo "🔒 Requesting sudo credentials..."; 
+    sudo -v || { echo "❌ sudo authentication failed." >&2; exit 1; } 
+  }
 }
 
+# ─── start_vpn ───────────────────────────────────────────────────────────────
 start_vpn(){
   if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" &>/dev/null; then
     echo "🔄 '$PROFILE_KEY' already running (PID $(<"$PID_FILE"))."
     return
   fi
+
   prepare_sudo
   echo "🚀 Starting '$PROFILE_KEY' → $VPN_CONF"
+
+  # Launch OpenVPN in background
   nohup sudo openvpn --config "$VPN_CONF" >"$LOG_FILE" 2>&1 &
   echo $! >"$PID_FILE"
-  echo "✅ Started (PID $(<"$PID_FILE")). Logs: $LOG_FILE"
+  echo "✅ Started (PID $(<"$PID_FILE")). Logs at $LOG_FILE"
+
   if [[ "$DEBUG" == true ]]; then
-    echo "--- Debug: tailing $LOG_FILE (Ctrl+C to stop) ---"
-    tail -F "$LOG_FILE"
+    echo "--- Debug mode: streaming logs from start (Ctrl+C to stop debug only) ---"
+    # Trap Ctrl-C to only stop the tail, not the VPN
+    trap 'echo "🛑 Exiting debug mode"; kill "$TAIL_PID" 2>/dev/null; exit 0' SIGINT
+
+    # Start tail from the very first line
+    tail -n +1 -F "$LOG_FILE" &
+    TAIL_PID=$!
+    wait "$TAIL_PID"
+    # After debug exit, clear trap
+    trap - SIGINT
   fi
 }
 
+# ─── stop_vpn ────────────────────────────────────────────────────────────────
 stop_vpn(){
   if [[ -f "$PID_FILE" ]]; then
     PID=$(<"$PID_FILE")
@@ -116,14 +121,15 @@ stop_vpn(){
       sudo kill "$PID" && rm -f "$PID_FILE"
       echo "✅ Stopped."
     else
-      echo "⚠️  No process $PID; removing stale PID." 
+      echo "⚠️ Process $PID not found; removing stale PID."
       rm -f "$PID_FILE"
     fi
   else
-    echo "ℹ️ '$PROFILE_KEY' not running."
+    echo "ℹ️ '$PROFILE_KEY' is not running."
   fi
 }
 
+# ─── status_vpn ─────────────────────────────────────────────────────────────
 status_vpn(){
   if [[ -f "$PID_FILE" ]] && kill -0 "$(cat "$PID_FILE")" &>/dev/null; then
     echo "✅ '$PROFILE_KEY' is running (PID $(<"$PID_FILE"))."
@@ -132,10 +138,10 @@ status_vpn(){
   fi
 }
 
-# Dispatch
+# ─── Dispatch ───────────────────────────────────────────────────────────────
 case "$ACTION" in
   start|up)   start_vpn ;;
   stop|down)  stop_vpn  ;;
-  status)     status_vpn;;
+  status)     status_vpn ;;
 esac
 
