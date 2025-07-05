@@ -6,7 +6,8 @@ A simple shell-based VPN profile manager driven by a YAML config.
 
 - Multiple profiles in `~/.config/vpn_config.yaml`
 - Commands: `start|up`, `stop|down`, `status`
-- Debug mode: `-d` or `-v` to tail logs
+- Cleanup before start: `-k`/`--kill` to remove all old `tun*` interfaces, routes, DNS caches, and stray openvpn processes
+- Debug mode: `-d` or `-v` to stream logs
 - Profile selection: `-p <profile>`
 - Bash tab-completion for flags, actions, and profiles
 - Works with either Go-yq or Python-yq
@@ -18,8 +19,43 @@ cd vpnctl
 ./scripts/install.sh
 ```
 
+## Usage
+
+```bash
+vpnctl [-d|-v] [-k] [-p <profile>] <start|up|stop|down|status>
+```
+
+- `-k`/`--kill`  
+  Before bringing up your chosen profile, clean out **all** old `tun*` interfaces, their routes, DNS caches, and any leftover openvpn processes.
+- `-d`/`--debug` or `-v`/`--verbose`  
+  Stream the log from the very beginning without tearing down the tunnel on Ctrl-C.
+- `-p <profile>`  
+  Select which profile from your YAML to use (defaults to the first one).
+
+### Examples
+
+```bash
+# Just start the default profile:
+vpnctl start
+
+# Kill old VPN bits then start:
+vpnctl -k start
+
+# Start and immediately stream all logs:
+vpnctl -d start
+
+# Kill old bits, then debug-start:
+vpnctl -k -d start
+
+# Stop a specific profile:
+vpnctl -p customer1 stop
+
+# Check status:
+vpnctl status
+```
 
 ## Uninstallation
+
 ```bash
 cd vpnctl
 ./scripts/uninstall.sh
@@ -41,7 +77,7 @@ vpn:
     config: "~/vpn/other.ovpn"
 ```
 
-I personally setup it like this:
+I personally set it up like this:
 
 ```yaml
 vpn:
@@ -51,7 +87,7 @@ vpn:
     config: "$HOME/.vpn/customer2/config.ovpn"
 ```
 
-within each customer's config directory I then place the necessary configuration for openvpn, example for customer2:
+Within each customer's config directory I then place the necessary configuration for OpenVPN. Example for `customer2`:
 
 ```bash
 user@host:~/.vpn/customer2$ tree
@@ -63,16 +99,11 @@ user@host:~/.vpn/customer2$ tree
 └── customer2-cert.pem
 ```
 
-Not related to vpnctl, but important to your configuration is of course, that you follow up on the paths within config.ovpn, that is you should have something like the following in your `config.ovpn`:
+Not related to vpnctl, but important to your configuration is that you follow up on the paths within `config.ovpn`, for example:
 
 ```bash
-...
 ca /home/user/.vpn/customer2/customer2-ca.pem
 cert /home/user/.vpn/customer2/customer2-cert.pem
 key /home/user/.vpn/customer2/customer2-cert.key
-...
 auth-user-pass /home/user/.vpn/customer2/auth.txt
 ```
-
-In auth.txt you should have your vpn user name and password line by line.
-
