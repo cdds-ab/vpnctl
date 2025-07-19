@@ -1,3 +1,11 @@
+# [1.2.0](https://github.com/cdds-ab/vpnctl/compare/v1.1.0...v1.2.0) (2025-07-19)
+
+
+### Features
+
+* add --version flag for version information display ([fc54b67](https://github.com/cdds-ab/vpnctl/commit/fc54b67bbb0da9de01dcdbc1dc16f27e486e0cdd))
+* add comprehensive GitHub issue templates for better project management ([4f3f3fe](https://github.com/cdds-ab/vpnctl/commit/4f3f3fee6119418ca734ff158cdef1e09edb3768))
+
 # [1.1.0](https://github.com/cdds-ab/vpnctl/compare/v1.0.1...v1.1.0) (2025-07-19)
 
 
