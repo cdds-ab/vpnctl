@@ -1,3 +1,11 @@
+## [1.2.2](https://github.com/cdds-ab/vpnctl/compare/v1.2.1...v1.2.2) (2025-07-19)
+
+
+### Bug Fixes
+
+* improve self-update stability and user experience ([7dfe22d](https://github.com/cdds-ab/vpnctl/commit/7dfe22da73e507d0a28f8127ab953060319c4f8a))
+* remove redundant exit in self-update case statement ([5f8214a](https://github.com/cdds-ab/vpnctl/commit/5f8214aff5905b0804442e46f9f654fbb2f98681))
+
 ## [1.2.1](https://github.com/cdds-ab/vpnctl/compare/v1.2.0...v1.2.1) (2025-07-19)
 
 
