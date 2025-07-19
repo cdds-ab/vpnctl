@@ -1,3 +1,15 @@
+# [1.1.0](https://github.com/cdds-ab/vpnctl/compare/v1.0.1...v1.1.0) (2025-07-19)
+
+
+### Bug Fixes
+
+* add self-update to argument parsing case statement ([d27c8c6](https://github.com/cdds-ab/vpnctl/commit/d27c8c68625606a8c5f298ac6c6c5eba63506993))
+
+
+### Features
+
+* implement self-update functionality with automatic version checking ([2d44845](https://github.com/cdds-ab/vpnctl/commit/2d448451b0e15881e220802ca6fcf1ce658c2aa0))
+
 # Changelog
 
 All notable changes to vpnctl will be documented in this file.
