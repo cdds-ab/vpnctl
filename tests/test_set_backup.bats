@@ -83,6 +83,11 @@ mock_yq_python() {
 }
 
 @test "set_backup_path updates existing config file with Go-yq" {
+    # Skip if we're in python-yq CI environment
+    if command -v yq >/dev/null && ! yq --version 2>&1 | grep -q 'eval'; then
+        skip "Skipping Go-yq test in Python-yq environment"
+    fi
+    
     # Create existing config
     cat > "$XDG_CONFIG_HOME/vpn_config.yaml" << EOF
 backup:
@@ -100,10 +105,22 @@ EOF
     
     [ "$status" -eq 0 ]
     [[ "$output" == *"Backup path updated"* ]]
+    
+    # Debug: Show config file content if test fails
+    if ! grep -q "/new/backup.tar.gz.gpg" "$XDG_CONFIG_HOME/vpn_config.yaml"; then
+        echo "Config file content:" >&3
+        cat "$XDG_CONFIG_HOME/vpn_config.yaml" >&3
+    fi
+    
     grep -q "/new/backup.tar.gz.gpg" "$XDG_CONFIG_HOME/vpn_config.yaml"
 }
 
 @test "set_backup_path updates existing config file with Python-yq" {
+    # Skip if we're in go-yq CI environment
+    if command -v yq >/dev/null && yq --version 2>&1 | grep -q 'eval'; then
+        skip "Skipping Python-yq test in Go-yq environment"
+    fi
+    
     # Create existing config
     cat > "$XDG_CONFIG_HOME/vpn_config.yaml" << EOF
 backup:
