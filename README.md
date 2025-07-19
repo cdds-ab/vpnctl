@@ -149,6 +149,40 @@ sudo dnf install bats  # Fedora/RHEL
 bats tests/test_vpnctl.bats
 ```
 
+### Pre-commit Hooks (Recommended for Development)
+
+Install automated quality checks that run before each commit:
+
+```bash
+# One-time installation
+./scripts/install-hooks.sh
+```
+
+**What the pre-commit hook does:**
+- ✅ **Tests**: Runs all BATS tests (must pass to commit)
+- ✅ **Linting**: Shellcheck validation (no warnings allowed)  
+- ✅ **Functionality**: Basic vpnctl functionality test
+- ✅ **GitHub Integration**: Validates repo access and commit format (if `gh` CLI available)
+- ✅ **Security**: Scans for potential secrets in staged files
+
+**Benefits:**
+- Prevents broken commits from entering the repository
+- Ensures consistent code quality across all contributors
+- Early detection of issues before CI/CD pipeline
+- Automatic validation of conventional commit messages
+
+**Usage:**
+```bash
+# After installation, hooks run automatically on every commit
+git commit -m "feat: add new feature"  # Hooks execute automatically
+
+# To temporarily bypass hooks (NOT recommended)
+git commit --no-verify -m "emergency fix"
+
+# To uninstall hooks
+rm .git/hooks/pre-commit
+```
+
 ### Test Coverage
 
 The test suite covers:
@@ -161,6 +195,26 @@ The test suite covers:
 - ✅ Path expansion and normalization
 
 Coverage reports are generated in `coverage/` directory with HTML visualization.
+
+### Development Workflow
+
+For the best development experience:
+
+1. **Install dependencies:**
+   ```bash
+   sudo apt install bats shellcheck gh  # Ubuntu/Debian
+   ```
+
+2. **Install pre-commit hooks:**
+   ```bash
+   ./scripts/install-hooks.sh
+   ```
+
+3. **Make changes and commit:**
+   ```bash
+   # Hooks automatically run tests, linting, and security checks
+   git commit -m "feat: your changes"
+   ```
 
 ### Continuous Integration
 
