@@ -128,7 +128,8 @@ EOF
     yq eval '.backup.default_file = "'"$BACKUP_PATH"'"' -i "$config_file"
   else
     # Python-yq: convert to JSON, update with jq, convert back to YAML
-    local temp_file=$(mktemp)
+    local temp_file
+    temp_file=$(mktemp)
     yq -j '.' "$config_file" | jq '.backup.default_file = "'"$BACKUP_PATH"'"' | yq -y '.' > "$temp_file" && mv "$temp_file" "$config_file"
   fi
   
@@ -137,7 +138,8 @@ EOF
 
 #── Functions for Backup/Restore ─────────────────────────────────────────────
 backup_cfg(){
-  local out=$(get_backup_file "output")
+  local out
+  out=$(get_backup_file "output")
   echo "🔐 Creating encrypted backup → $out"
   cd "$HOME"
   tar czpf - .config/vpn_config.yaml .vpn | \
@@ -146,7 +148,8 @@ backup_cfg(){
 }
 
 restore_cfg(){
-  local in=$(get_backup_file "input")
+  local in
+  in=$(get_backup_file "input")
   [[ -f "$in" ]] || { echo "❌ Backup file '$in' not found."; exit 1; }
   echo "🔓 Restoring from encrypted backup → $in"
   cd "$HOME"
@@ -155,22 +158,25 @@ restore_cfg(){
 }
 
 backup_stats(){
-  local in=$(get_backup_file "input")
+  local in
+  in=$(get_backup_file "input")
   [[ -f "$in" ]] || { echo "❌ Backup file '$in' not found."; exit 1; }
   
   echo "📊 Backup Statistics: $in"
   echo "══════════════════════════════════════"
   
   # Get backup file info
-  local backup_size=$(du -h "$in" 2>/dev/null | cut -f1)
-  local backup_date=$(stat -c %y "$in" 2>/dev/null | cut -d' ' -f1,2 | cut -d'.' -f1)
+  local backup_size backup_date
+  backup_size=$(du -h "$in" 2>/dev/null | cut -f1)
+  backup_date=$(stat -c %y "$in" 2>/dev/null | cut -d' ' -f1,2 | cut -d'.' -f1)
   echo "📁 Size: $backup_size"
   echo "📅 Created: $backup_date"
   echo
   
   # Extract and analyze backup content temporarily
-  local temp_dir=$(mktemp -d)
-  trap "rm -rf '$temp_dir'" EXIT
+  local temp_dir
+  temp_dir=$(mktemp -d)
+  trap 'rm -rf "$temp_dir"' EXIT
   
   echo "🔍 Analyzing backup content..."
   cd "$temp_dir"
@@ -190,7 +196,8 @@ backup_stats(){
       echo "🔗 Profiles in backup:"
       if [[ -n "$backup_profiles" ]]; then
         echo "$backup_profiles" | sed 's/^/  • /' | sed 's/"//g'
-        local profile_count=$(echo "$backup_profiles" | wc -l)
+        local profile_count
+        profile_count=$(echo "$backup_profiles" | wc -l)
         echo "   Total: $profile_count profiles"
       else
         echo "  ❌ No profiles found"
@@ -204,7 +211,8 @@ backup_stats(){
       echo
       echo "📂 VPN configs in backup:"
       find ".vpn" -name "*.ovpn" | sed 's|^\.vpn/||' | sed 's/^/  • /'
-      local config_count=$(find ".vpn" -name "*.ovpn" | wc -l)
+      local config_count
+      config_count=$(find ".vpn" -name "*.ovpn" | wc -l)
       echo "   Total: $config_count .ovpn files"
     else
       echo "❌ No .vpn directory found in backup"
@@ -216,9 +224,10 @@ backup_stats(){
     local current_config="$HOME/.config/vpn_config.yaml"
     if [[ -f "$current_config" ]]; then
       # Create temporary files without backup.default_file for comparison
-      local temp_current=$(mktemp)
-      local temp_backup=$(mktemp)
-      trap "rm -f '$temp_current' '$temp_backup'" EXIT
+      local temp_current temp_backup
+      temp_current=$(mktemp)
+      temp_backup=$(mktemp)
+      trap 'rm -f "$temp_current" "$temp_backup"' EXIT
       
       # Strip backup.default_file from both configs for comparison
       if yq --version 2>&1 | grep -q 'eval'; then
@@ -246,17 +255,23 @@ backup_stats(){
         backup_profiles=$(echo "$backup_profiles" | sed 's/"//g' | sort)
         
         # Profiles only in current config
-        local only_current=$(comm -23 <(echo "$current_profiles") <(echo "$backup_profiles"))
+        local only_current
+        only_current=$(comm -23 <(echo "$current_profiles") <(echo "$backup_profiles"))
         if [[ -n "$only_current" ]]; then
           echo "   📝 New profiles since backup:"
-          echo "$only_current" | sed 's/^/     • /'
+          while IFS= read -r line; do
+            echo "     • $line"
+          done <<< "$only_current"
         fi
         
         # Profiles only in backup
-        local only_backup=$(comm -13 <(echo "$current_profiles") <(echo "$backup_profiles"))
+        local only_backup
+        only_backup=$(comm -13 <(echo "$current_profiles") <(echo "$backup_profiles"))
         if [[ -n "$only_backup" ]]; then
           echo "   🗑️  Profiles removed since backup:"
-          echo "$only_backup" | sed 's/^/     • /'
+          while IFS= read -r line; do
+            echo "     • $line"
+          done <<< "$only_backup"
         fi
       fi
     else
@@ -324,7 +339,9 @@ prepare_sudo(){
 start_vpn(){
   if [[ "$KILL_OLD" == true ]]; then
     echo "🧹 Purging old tun* devices, routes, DNS caches & openvpn procs…"
-    for dev in $(ls /sys/class/net | grep '^tun'); do
+    for dev in /sys/class/net/tun*; do
+      [ -e "$dev" ] || continue
+      dev=$(basename "$dev")
       sudo ip link delete "$dev" 2>/dev/null || true
       sudo ip route flush dev "$dev" 2>/dev/null || true
     done
