@@ -9,6 +9,9 @@ plugins:
   - ['@semantic-release/changelog', {
       changelogFile: 'CHANGELOG.md'
     }]
+  - ['@semantic-release/exec', {
+      prepareCmd: 'sed -i "s/CURRENT_VERSION=\".*\"/CURRENT_VERSION=\"${nextRelease.version}\"/" bin/vpnctl'
+    }]
   - ['@semantic-release/github', {
       assets: [
         {
@@ -39,7 +42,7 @@ plugins:
       ]
     }]
   - ['@semantic-release/git', {
-      assets: ['CHANGELOG.md'],
+      assets: ['CHANGELOG.md', 'bin/vpnctl'],
       message: 'chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}'
     }]
 
