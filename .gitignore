@@ -1,0 +1,69 @@
+# vpnctl - Git Ignore File
+
+# Coverage data and test artifacts
+coverage/
+*.coverage
+*.lcov
+
+# Test output and logs
+tests/*.log
+tests/test_*.tmp
+tests/bats_*
+tests/coverage_*
+
+# Backup files (don't commit actual backups)
+*.tar.gz.gpg
+*backup*.tar.gz
+vpn-backup*
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.*.swp
+.*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Shell history and configs (security)
+.bash_history
+.zsh_history
+.vpn/
+.config/vpn_config.yaml
+
+# CI/CD artifacts
+artifacts/
+reports/
+
+# Local development
+.env
+.env.local
+local_*
+dev_*
+
+# Package manager files (if any)
+node_modules/
+.npm/
+.yarn/
+
+# Logs
+*.log
+logs/
+
+# Cache directories
+.cache/
