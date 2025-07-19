@@ -13,6 +13,7 @@ A simple shell-based VPN profile manager driven by a YAML config.
 
 - Multiple profiles in `~/.config/vpn_config.yaml`
 - Commands: `start|up`, `stop|down`, `status`, `backup`, `restore`, `backup-stats`, `set-backup`, `self-update`
+- Self-update with release notes (prefers GitHub CLI, falls back to curl/wget)
 - Cleanup before `start`: `-k`/`--kill` to remove all old `tun*` interfaces, routes, DNS caches, and stray openvpn processes
 - Debug mode: `-d` or `-v` to stream logs without tearing down the tunnel on Ctrl-C
 - Profile selection: `-p <profile>`
@@ -38,6 +39,21 @@ wget https://github.com/cdds-ab/vpnctl/releases/latest/download/vpnctl
 wget https://github.com/cdds-ab/vpnctl/releases/latest/download/install.sh
 chmod +x install.sh
 sudo ./install.sh
+```
+
+### Optional: GitHub CLI for Enhanced Experience
+
+For the best self-update experience with release notes:
+
+```bash
+# Install GitHub CLI (optional but recommended)
+# Ubuntu/Debian:
+sudo apt install gh
+
+# macOS:
+brew install gh
+
+# Or see: https://cli.github.com/
 ```
 
 ### From Source
@@ -107,7 +123,7 @@ vpnctl set-backup ~/Backups/my-vpn-backup.tar.gz.gpg
 # View backup statistics:
 vpnctl backup-stats
 
-# Update to latest version:
+# Update to latest version (shows release notes with gh CLI):
 vpnctl self-update
 ```
 

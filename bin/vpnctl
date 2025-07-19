@@ -9,7 +9,7 @@
 #   -o/--output <file>             output path for backup (default vpn-backup.tar.gz.gpg)
 #   -i/--input <file>              input path for restore  (default vpn-backup.tar.gz.gpg)
 # Actions: start|up, stop|down, status, backup, restore, backup-stats, set-backup, self-update
-# Requires: yq (Go-yq or python-yq), openvpn, sudo, gpg (for backup/restore), curl/wget (for self-update)
+# Requires: yq (Go-yq or python-yq), openvpn, sudo, gpg (for backup/restore), gh/curl/wget (for self-update)
 
 set -euo pipefail
 
@@ -119,16 +119,25 @@ check_for_updates(){
     fi
   fi
   
-  # Check for latest release on GitHub
+  # Check for latest release on GitHub - prefer gh CLI, fallback to curl/wget
   local latest_version
-  if command -v curl >/dev/null 2>&1; then
+  if command -v gh >/dev/null 2>&1; then
+    latest_version=$(gh release view --repo "$GITHUB_REPO" --json tagName --jq '.tagName | sub("^v"; "")' 2>/dev/null)
+    # If gh fails (not authenticated), fall back to curl/wget
+    if [[ -z "$latest_version" || "$latest_version" == "null" ]]; then
+      latest_version=""
+    fi
+  fi
+  
+  # Fallback to curl if gh failed or is not available
+  if [[ -z "$latest_version" ]] && command -v curl >/dev/null 2>&1; then
     latest_version=$(curl -s "https://api.github.com/repos/$GITHUB_REPO/releases/latest" \
       | grep '"tag_name"' | cut -d'"' -f4 | sed 's/^v//' 2>/dev/null)
   elif command -v wget >/dev/null 2>&1; then
     latest_version=$(wget -qO- "https://api.github.com/repos/$GITHUB_REPO/releases/latest" \
       | grep '"tag_name"' | cut -d'"' -f4 | sed 's/^v//' 2>/dev/null)
   else
-    # No curl or wget available
+    # No tools available
     return 0
   fi
   
@@ -146,27 +155,31 @@ check_for_updates(){
 self_update(){
   echo "🔄 Checking for vpnctl updates..."
   
-  # Check for required tools
-  local download_tool=""
-  if command -v curl >/dev/null 2>&1; then
-    download_tool="curl"
+  # Get latest release info - prefer gh CLI
+  local latest_version release_notes
+  if command -v gh >/dev/null 2>&1; then
+    latest_version=$(gh release view --repo "$GITHUB_REPO" --json tagName --jq '.tagName | sub("^v"; "")' 2>/dev/null)
+    if [[ -n "$latest_version" && "$latest_version" != "null" ]]; then
+      release_notes=$(gh release view --repo "$GITHUB_REPO" --json body --jq '.body' 2>/dev/null | head -5)
+    else
+      latest_version=""
+    fi
+  fi
+  
+  # Fallback to curl if gh failed or is not available
+  if [[ -z "$latest_version" ]] && command -v curl >/dev/null 2>&1; then
+    local api_response
+    api_response=$(curl -s "https://api.github.com/repos/$GITHUB_REPO/releases/latest")
+    latest_version=$(echo "$api_response" | grep '"tag_name"' | cut -d'"' -f4 | sed 's/^v//' 2>/dev/null)
   elif command -v wget >/dev/null 2>&1; then
-    download_tool="wget"
+    local api_response
+    api_response=$(wget -qO- "https://api.github.com/repos/$GITHUB_REPO/releases/latest")
+    latest_version=$(echo "$api_response" | grep '"tag_name"' | cut -d'"' -f4 | sed 's/^v//' 2>/dev/null)
   else
-    echo "❌ Error: curl or wget required for self-update"
+    echo "❌ Error: gh, curl, or wget required for self-update"
+    echo "   Install gh CLI: https://cli.github.com/"
     exit 1
   fi
-  
-  # Get latest release info
-  local api_response
-  if [[ "$download_tool" == "curl" ]]; then
-    api_response=$(curl -s "https://api.github.com/repos/$GITHUB_REPO/releases/latest")
-  else
-    api_response=$(wget -qO- "https://api.github.com/repos/$GITHUB_REPO/releases/latest")
-  fi
-  
-  local latest_version
-  latest_version=$(echo "$api_response" | grep '"tag_name"' | cut -d'"' -f4 | sed 's/^v//' 2>/dev/null)
   
   if [[ -z "$latest_version" ]]; then
     echo "❌ Error: Could not fetch latest version information"
@@ -180,19 +193,27 @@ self_update(){
   
   echo "📦 Updating from $CURRENT_VERSION to $latest_version..."
   
+  # Show release notes if available
+  if [[ -n "$release_notes" && "$release_notes" != "null" ]]; then
+    echo "📋 What's new:"
+    echo "$release_notes" | sed 's/^/   /'
+    echo ""
+  fi
+  
   # Create temporary directory for download
   local temp_dir
   temp_dir=$(mktemp -d)
   trap 'rm -rf "$temp_dir"' EXIT
   
-  # Download new version
-  local download_url="https://github.com/$GITHUB_REPO/releases/latest/download/vpnctl"
   echo "⬇️  Downloading latest version..."
   
-  if [[ "$download_tool" == "curl" ]]; then
-    curl -sL -o "$temp_dir/vpnctl" "$download_url"
+  # Download new version - prefer gh CLI
+  if command -v gh >/dev/null 2>&1; then
+    gh release download --repo "$GITHUB_REPO" --pattern "vpnctl" --dir "$temp_dir" 2>/dev/null
+  elif command -v curl >/dev/null 2>&1; then
+    curl -sL -o "$temp_dir/vpnctl" "https://github.com/$GITHUB_REPO/releases/latest/download/vpnctl"
   else
-    wget -q -O "$temp_dir/vpnctl" "$download_url"
+    wget -q -O "$temp_dir/vpnctl" "https://github.com/$GITHUB_REPO/releases/latest/download/vpnctl"
   fi
   
   # Verify download
@@ -208,7 +229,7 @@ self_update(){
   downloaded_version=$(grep '^CURRENT_VERSION=' "$temp_dir/vpnctl" | cut -d'"' -f2 2>/dev/null || echo "unknown")
   
   if [[ "$downloaded_version" != "$latest_version" ]]; then
-    echo "⚠️  Warning: Version mismatch in downloaded file"
+    echo "⚠️  Warning: Version mismatch in downloaded file (expected: $latest_version, got: $downloaded_version)"
   fi
   
   # Find current vpnctl location
