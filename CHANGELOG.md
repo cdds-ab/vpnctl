@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/cdds-ab/vpnctl/compare/v1.0.0...v1.0.1) (2025-07-19)
+
+
+### Bug Fixes
+
+* remove automatic coverage badge update due to permission issues ([9e689d6](https://github.com/cdds-ab/vpnctl/commit/9e689d65f9340d16037d183e4e00d28f6e0ca0ae))
+
 # 1.0.0 (2025-07-19)
 
 
