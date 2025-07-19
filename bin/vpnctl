@@ -196,7 +196,7 @@ self_update(){
   # Show release notes if available
   if [[ -n "$release_notes" && "$release_notes" != "null" ]]; then
     echo "📋 What's new:"
-    echo "$release_notes" | sed 's/^/   /'
+    printf '   %s\n' "$release_notes"
     echo ""
   fi
   
