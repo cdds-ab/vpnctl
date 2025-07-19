@@ -87,7 +87,8 @@ fi
 
 # 5. Check for secrets/keys (security)
 echo -e "${YELLOW}🔒 Checking for potential secrets...${NC}"
-if git diff --cached --name-only | xargs grep -l "password\|secret\|key\|token" 2>/dev/null; then
+# Look for actual secret patterns, not just keywords in documentation
+if git diff --cached | grep -E "^[+].*" | grep -qE "(password|secret|token)\s*[=:]\s*['\"][^'\"]{8,}['\"]|api[_-]?key\s*[=:]\s*['\"][^'\"]{20,}['\"]"; then
     echo -e "${RED}❌ Potential secrets found in staged files!${NC}"
     echo -e "${YELLOW}💡 Review staged changes for sensitive information${NC}"
     echo -e "${YELLOW}   Use 'git diff --cached' to review${NC}"
