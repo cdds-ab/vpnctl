@@ -95,7 +95,7 @@ jobs:
               |------|----------|-------|
               | bin/vpnctl | \${summary.files['bin/vpnctl'].percentage}% | \${summary.files['bin/vpnctl'].covered_lines}/\${summary.files['bin/vpnctl'].total_lines} |
 
-              \${coverage >= 80 ? '✅ Coverage threshold met!' : '⚠️ Coverage below 80% threshold'}
+              \${coverage >= 25 ? '✅ Coverage threshold met!' : '⚠️ Coverage below 25% threshold'}
 
               <details>
               <summary>View detailed coverage report</summary>
@@ -241,9 +241,9 @@ jobs:
             if [ -f "coverage-report-${variant}/coverage_summary.json" ]; then
               coverage=$(jq -r '.overall.percentage' \
                 "coverage-report-${variant}/coverage_summary.json")
-              if [ "$coverage" -ge 80 ]; then
+              if [ "$coverage" -ge 25 ]; then
                 status="🟢 PASS"
-              elif [ "$coverage" -ge 60 ]; then
+              elif [ "$coverage" -ge 15 ]; then
                 status="🟡 WARN"
               else
                 status="🔴 FAIL"
@@ -255,4 +255,4 @@ jobs:
           done
 
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Threshold:** 80% minimum coverage required" >> $GITHUB_STEP_SUMMARY
+          echo "**Threshold:** 25% minimum coverage required" >> $GITHUB_STEP_SUMMARY

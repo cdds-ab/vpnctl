@@ -250,3 +250,28 @@ EOF
     
     [ "$is_valid" = "false" ]
 }
+
+@test "backup_stats function detects missing backup file" {
+    export INPUT_FILE="/nonexistent/backup.tar.gz.gpg"
+    
+    run backup_stats
+    
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Backup file"*"not found"* ]]
+}
+
+@test "prepare_sudo function checks sudo availability" {
+    # Mock sudo command to avoid actual sudo requirement
+    function sudo() {
+        case "$1" in
+            "-n") return 0 ;;  # Simulate successful sudo -n
+            "-v") return 0 ;;  # Simulate successful sudo -v
+            *) return 1 ;;
+        esac
+    }
+    export -f sudo
+    
+    run prepare_sudo
+    
+    [ "$status" -eq 0 ]
+}

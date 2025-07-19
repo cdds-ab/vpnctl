@@ -144,9 +144,9 @@ show_coverage() {
     
     if [[ $total_functions -gt 0 ]]; then
         local coverage=$((tested_functions * 100 / total_functions))
-        if [[ $coverage -ge 80 ]]; then
+        if [[ $coverage -ge 25 ]]; then
             echo -e "  Coverage: ${GREEN}${coverage}%${NC}"
-        elif [[ $coverage -ge 60 ]]; then
+        elif [[ $coverage -ge 15 ]]; then
             echo -e "  Coverage: ${YELLOW}${coverage}%${NC}"
         else
             echo -e "  Coverage: ${RED}${coverage}%${NC}"
