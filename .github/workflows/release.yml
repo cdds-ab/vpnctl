@@ -9,11 +9,72 @@ on:
 
 jobs:
   test:
-    uses: ./.github/workflows/test.yml
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        yq-variant: [go-yq, python-yq]
+
+    name: Tests (${{ matrix.yq-variant }})
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install BATS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bats
+
+      - name: Install Go-yq
+        if: matrix.yq-variant == 'go-yq'
+        run: |
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
+
+      - name: Install Python-yq
+        if: matrix.yq-variant == 'python-yq'
+        run: |
+          sudo apt-get install -y python3-pip
+          pip3 install yq
+          yq --version
+
+      - name: Install jq (required for Python-yq)
+        if: matrix.yq-variant == 'python-yq'
+        run: |
+          sudo apt-get install -y jq
+          jq --version
+
+      - name: Run tests
+        run: |
+          echo "Testing with ${{ matrix.yq-variant }}"
+          ./tests/run_tests.sh
+
+  lint:
+    runs-on: ubuntu-latest
+    name: Lint & Style Check
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Run shellcheck on main script
+        run: |
+          shellcheck bin/vpnctl
+
+      - name: Run shellcheck on test scripts
+        run: |
+          shellcheck tests/*.sh
 
   release:
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, lint]
     if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
     
     permissions:
