@@ -91,8 +91,8 @@ jobs:
               
               **Overall Coverage: \${coverage}%** (\${coveredLines}/\${totalLines} lines)
 
-  | File | Coverage | Lines |
-  |------|----------|-------|
+              | File | Coverage | Lines |
+              |------|----------|-------|
               | bin/vpnctl | \${summary.files['bin/vpnctl'].percentage}% | \${summary.files['bin/vpnctl'].covered_lines}/\${summary.files['bin/vpnctl'].total_lines} |
 
               \${coverage >= 80 ? '✅ Coverage threshold met!' : '⚠️ Coverage below 80% threshold'}
