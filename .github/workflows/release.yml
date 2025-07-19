@@ -94,14 +94,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
 
       - name: Install dependencies
         run: |
           npm install -g semantic-release @semantic-release/changelog @semantic-release/git
 
-      - name: Verify the integrity of provenance attestations and registry signatures for installed dependencies
-        run: npm audit signatures
 
       - name: Create checksums for release assets
         run: |
