@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/cdds-ab/vpnctl/compare/v1.2.0...v1.2.1) (2025-07-19)
+
+
+### Bug Fixes
+
+* configure semantic-release to auto-update version in code ([df95974](https://github.com/cdds-ab/vpnctl/commit/df959745d311778f91fbdb020500d5b0b7aa9dad))
+
 # [1.2.0](https://github.com/cdds-ab/vpnctl/compare/v1.1.0...v1.2.0) (2025-07-19)
 
 
