@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/cdds-ab/vpnctl/compare/v1.2.2...v1.3.0) (2025-07-19)
+
+
+### Features
+
+* add GitHub CLI (gh) support for enhanced self-update experience ([843544d](https://github.com/cdds-ab/vpnctl/commit/843544d38e0ad84f09ce7689984c621d76e83a13))
+
 ## [1.2.2](https://github.com/cdds-ab/vpnctl/compare/v1.2.1...v1.2.2) (2025-07-19)
 
 
