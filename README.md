@@ -1,9 +1,9 @@
 # vpnctl
 
-[![Tests](https://github.com/username/vpnctl/workflows/Tests%20&%20Coverage/badge.svg)](https://github.com/username/vpnctl/actions)
-[![Release](https://github.com/username/vpnctl/workflows/Release/badge.svg)](https://github.com/username/vpnctl/actions)
-[![Coverage](https://img.shields.io/badge/coverage-44%25-green)](https://github.com/username/vpnctl/actions)
-[![Latest Release](https://img.shields.io/github/v/release/username/vpnctl)](https://github.com/username/vpnctl/releases)
+[![Tests](https://github.com/cdds-ab/vpnctl/actions/workflows/test.yml/badge.svg)](https://github.com/cdds-ab/vpnctl/actions/workflows/test.yml)
+[![Release](https://github.com/cdds-ab/vpnctl/actions/workflows/release.yml/badge.svg)](https://github.com/cdds-ab/vpnctl/actions/workflows/release.yml)
+[![Coverage](https://img.shields.io/badge/coverage-44%25-green)](https://github.com/cdds-ab/vpnctl/actions)
+[![Latest Release](https://img.shields.io/github/v/release/cdds-ab/vpnctl)](https://github.com/cdds-ab/vpnctl/releases)
 [![Shell](https://img.shields.io/badge/shell-bash-blue)](bin/vpnctl)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -25,17 +25,17 @@ A simple shell-based VPN profile manager driven by a YAML config.
 
 ### From Release (Recommended)
 
-Download the latest release from [GitHub Releases](https://github.com/username/vpnctl/releases):
+Download the latest release from [GitHub Releases](https://github.com/cdds-ab/vpnctl/releases):
 
 ```bash
 # Download and install latest release
-curl -L https://github.com/username/vpnctl/releases/latest/download/install.sh | bash
+curl -L https://github.com/cdds-ab/vpnctl/releases/latest/download/install.sh | bash
 ```
 
 Or manually:
 ```bash
-wget https://github.com/username/vpnctl/releases/latest/download/vpnctl
-wget https://github.com/username/vpnctl/releases/latest/download/install.sh
+wget https://github.com/cdds-ab/vpnctl/releases/latest/download/vpnctl
+wget https://github.com/cdds-ab/vpnctl/releases/latest/download/install.sh
 chmod +x install.sh
 sudo ./install.sh
 ```
@@ -43,7 +43,7 @@ sudo ./install.sh
 ### From Source
 
 ```bash
-git clone https://github.com/username/vpnctl.git
+git clone https://github.com/cdds-ab/vpnctl.git
 cd vpnctl
 ./scripts/install.sh
 ```
@@ -143,7 +143,7 @@ Coverage reports are generated in `coverage/` directory with HTML visualization.
 This project implements comprehensive CI/CD addressing **GitHub Issue #4**:
 
 - ✅ **Regression Tests** - BATS test suite with 38 test cases
-- ✅ **Coverage Mechanism** - Function-based coverage analysis (22% coverage)  
+- ✅ **Coverage Mechanism** - Function-based coverage analysis (44% coverage)  
 - ✅ **CI Pipeline** - GitHub Actions workflow with matrix testing
 - ✅ **Coverage Badges** - Real-time coverage status in README
 

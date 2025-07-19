@@ -256,3 +256,42 @@ jobs:
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Threshold:** 25% minimum coverage required" >> $GITHUB_STEP_SUMMARY
+
+      - name: Update coverage badge in README
+        if: github.ref == 'refs/heads/master' && success()
+        run: |
+          # Get the highest coverage from go-yq and python-yq variants
+          max_coverage=0
+          for variant in go-yq python-yq; do
+            if [ -f "coverage-report-${variant}/coverage_summary.json" ]; then
+              coverage=$(jq -r '.overall.percentage' \
+                "coverage-report-${variant}/coverage_summary.json")
+              if [ "$coverage" -gt "$max_coverage" ]; then
+                max_coverage=$coverage
+              fi
+            fi
+          done
+          
+          # Determine badge color
+          if [ "$max_coverage" -ge 80 ]; then
+            color="brightgreen"
+          elif [ "$max_coverage" -ge 60 ]; then
+            color="yellow"
+          elif [ "$max_coverage" -ge 25 ]; then
+            color="green"
+          else
+            color="red"
+          fi
+          
+          # Update README.md coverage badge and text references
+          sed -i "s/coverage-[0-9]*%25-[a-z]*/coverage-${max_coverage}%25-${color}/" README.md
+          sed -i "s/Function-based coverage analysis ([0-9]*% coverage)/Function-based coverage analysis (${max_coverage}% coverage)/" README.md
+          
+          # Check if there are changes to commit
+          if ! git diff --quiet README.md; then
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            git add README.md
+            git commit -m "docs: update coverage badge to ${max_coverage}% [skip ci]"
+            git push
+          fi
