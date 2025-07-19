@@ -437,7 +437,7 @@ case "$ACTION" in
   restore)     restore_cfg; exit 0 ;;
   backup-stats) backup_stats; exit 0 ;;
   set-backup)  set_backup_path; exit 0 ;;
-  self-update) self_update; exit 0 ;;
+  self-update) self_update ;;
 esac
 
 # ─── From here only VPN commands (start/stop/status) ─────────────────────────
