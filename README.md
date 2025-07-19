@@ -1,7 +1,9 @@
 # vpnctl
 
 [![Tests](https://github.com/username/vpnctl/workflows/Tests%20&%20Coverage/badge.svg)](https://github.com/username/vpnctl/actions)
-[![Coverage](https://img.shields.io/badge/coverage-22%25-yellow)](https://github.com/username/vpnctl/actions)
+[![Release](https://github.com/username/vpnctl/workflows/Release/badge.svg)](https://github.com/username/vpnctl/actions)
+[![Coverage](https://img.shields.io/badge/coverage-44%25-green)](https://github.com/username/vpnctl/actions)
+[![Latest Release](https://img.shields.io/github/v/release/username/vpnctl)](https://github.com/username/vpnctl/releases)
 [![Shell](https://img.shields.io/badge/shell-bash-blue)](bin/vpnctl)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
@@ -21,7 +23,27 @@ A simple shell-based VPN profile manager driven by a YAML config.
 
 ## Installation
 
+### From Release (Recommended)
+
+Download the latest release from [GitHub Releases](https://github.com/username/vpnctl/releases):
+
 ```bash
+# Download and install latest release
+curl -L https://github.com/username/vpnctl/releases/latest/download/install.sh | bash
+```
+
+Or manually:
+```bash
+wget https://github.com/username/vpnctl/releases/latest/download/vpnctl
+wget https://github.com/username/vpnctl/releases/latest/download/install.sh
+chmod +x install.sh
+sudo ./install.sh
+```
+
+### From Source
+
+```bash
+git clone https://github.com/username/vpnctl.git
 cd vpnctl
 ./scripts/install.sh
 ```
@@ -131,6 +153,21 @@ This project implements comprehensive CI/CD addressing **GitHub Issue #4**:
 - Coverage reporting with HTML visualization
 - Automated PR comments with coverage details
 - Multi-job workflow: tests, lint, integration, security
+
+## Releases
+
+This project uses automated releases with [Semantic Versioning](https://semver.org/):
+
+- **feat**: New features → MINOR version bump
+- **fix**: Bug fixes → PATCH version bump  
+- **BREAKING CHANGE**: Breaking changes → MAJOR version bump
+
+All releases are automatically created via GitHub Actions and include:
+- Pre-compiled binaries and scripts
+- Automated changelogs
+- Release assets with checksums
+
+See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for commit message guidelines.
 
 ## Uninstallation
 

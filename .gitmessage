@@ -1,0 +1,28 @@
+# <type>[optional scope]: <description>
+#
+# [optional body]
+#
+# [optional footer(s)]
+
+# Types:
+# feat:     A new feature
+# fix:      A bug fix
+# docs:     Documentation only changes
+# style:    Changes that do not affect the meaning of the code
+# refactor: A code change that neither fixes a bug nor adds a feature
+# perf:     A code change that improves performance
+# test:     Adding missing tests or correcting existing tests
+# chore:    Changes to the build process or auxiliary tools
+
+# Examples:
+# feat: add backup-stats command
+# fix: resolve config file parsing issue
+# docs: update installation instructions
+# feat!: remove deprecated API (BREAKING CHANGE)
+# fix(completion): handle missing config gracefully
+
+# Breaking Changes:
+# Add BREAKING CHANGE: in the footer or use ! after type/scope
+# This will trigger a MAJOR version bump
+
+# Scope examples: completion, backup, config, install, test

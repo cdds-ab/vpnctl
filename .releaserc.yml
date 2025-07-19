@@ -1,0 +1,71 @@
+---
+branches:
+  - master
+  - main
+
+plugins:
+  - '@semantic-release/commit-analyzer'
+  - '@semantic-release/release-notes-generator'
+  - ['@semantic-release/changelog', {
+      changelogFile: 'CHANGELOG.md'
+    }]
+  - ['@semantic-release/github', {
+      assets: [
+        {
+          path: 'bin/vpnctl',
+          name: 'vpnctl',
+          label: 'vpnctl script'
+        },
+        {
+          path: 'scripts/install.sh',
+          name: 'install.sh',
+          label: 'Installation script'
+        },
+        {
+          path: 'scripts/uninstall.sh', 
+          name: 'uninstall.sh',
+          label: 'Uninstallation script'
+        },
+        {
+          path: 'README.md',
+          name: 'README.md',
+          label: 'Documentation'
+        },
+        {
+          path: 'CHANGELOG.md',
+          name: 'CHANGELOG.md',
+          label: 'Changelog'
+        }
+      ]
+    }]
+  - ['@semantic-release/git', {
+      assets: ['CHANGELOG.md'],
+      message: 'chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}'
+    }]
+
+preset: 'angular'
+
+releaseRules:
+  - type: feat
+    release: minor
+  - type: fix
+    release: patch
+  - type: perf
+    release: patch
+  - type: docs
+    release: false
+  - type: style
+    release: false
+  - type: refactor
+    release: false
+  - type: test
+    release: false
+  - type: chore
+    release: false
+  - scope: breaking
+    release: major
+
+parserOpts:
+  noteKeywords:
+    - BREAKING CHANGE
+    - BREAKING CHANGES

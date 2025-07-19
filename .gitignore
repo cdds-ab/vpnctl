@@ -67,3 +67,13 @@ logs/
 
 # Cache directories
 .cache/
+
+# Release artifacts
+release-assets/
+*.tar.gz
+checksums.txt
+
+# Semantic release
+node_modules/
+package-lock.json
+.nyc_output/
