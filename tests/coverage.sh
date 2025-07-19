@@ -11,7 +11,6 @@ COVERAGE_DIR="$PROJECT_ROOT/coverage"
 
 # Colors
 GREEN='\033[0;32m'
-RED='\033[0;31m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
@@ -179,12 +178,14 @@ calculate_simple_coverage() {
         percentage=$((tested_functions * 100 / total_functions))
     fi
     
-    echo "" >> "$coverage_data"
-    echo "Summary:" >> "$coverage_data"
-    echo "========" >> "$coverage_data"
-    echo "Total functions: $total_functions" >> "$coverage_data"
-    echo "Tested functions: $tested_functions" >> "$coverage_data"
-    echo "Coverage: ${percentage}%" >> "$coverage_data"
+    {
+        echo ""
+        echo "Summary:"
+        echo "========"
+        echo "Total functions: $total_functions"
+        echo "Tested functions: $tested_functions"
+        echo "Coverage: ${percentage}%"
+    } >> "$coverage_data"
     
     # Also create JSON summary for CI
     cat > "$COVERAGE_DIR/coverage_summary.json" << EOF
@@ -209,7 +210,8 @@ EOF
 }
 
 generate_html_report() {
-    local coverage_percentage=$(calculate_simple_coverage)
+    local coverage_percentage
+    coverage_percentage=$(calculate_simple_coverage)
     local html_file="$COVERAGE_DIR/coverage.html"
     
     cat > "$html_file" << EOF
@@ -237,7 +239,7 @@ generate_html_report() {
     
     <div class="summary">
         <h2>Coverage Summary</h2>
-        <p>Overall Coverage: <span class="$([ $coverage_percentage -ge 80 ] && echo "good" || ([ $coverage_percentage -ge 60 ] && echo "medium" || echo "poor"))">${coverage_percentage}%</span></p>
+        <p>Overall Coverage: <span class="$(if [ "$coverage_percentage" -ge 80 ]; then echo "good"; elif [ "$coverage_percentage" -ge 60 ]; then echo "medium"; else echo "poor"; fi)">${coverage_percentage}%</span></p>
         <p>This coverage analysis is based on function testing patterns in the BATS test suite.</p>
     </div>
     
@@ -265,7 +267,8 @@ run_coverage() {
     
     # Step 3: Calculate coverage
     echo "📈 Calculating coverage..."
-    local coverage_percentage=$(calculate_simple_coverage)
+    local coverage_percentage
+    coverage_percentage=$(calculate_simple_coverage)
     
     # Step 4: Display results
     echo ""
