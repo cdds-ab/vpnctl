@@ -48,7 +48,7 @@ _vpnctl_completions(){
 
   # actions in first position
   if [[ $COMP_CWORD -eq 1 ]]; then
-    COMPREPLY=( $(compgen -W "start up stop down status backup restore backup-stats set-backup" -- "$cur") )
+    COMPREPLY=( $(compgen -W "start up stop down status backup restore backup-stats set-backup self-update" -- "$cur") )
     return
   fi
 }

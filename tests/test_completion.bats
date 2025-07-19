@@ -232,4 +232,5 @@ EOF
     [[ " ${COMPREPLY[*]} " =~ " start " ]]
     [[ " ${COMPREPLY[*]} " =~ " backup-stats " ]]
     [[ " ${COMPREPLY[*]} " =~ " set-backup " ]]
+    [[ " ${COMPREPLY[*]} " =~ " self-update " ]]
 }

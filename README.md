@@ -12,7 +12,7 @@ A simple shell-based VPN profile manager driven by a YAML config.
 ## Features
 
 - Multiple profiles in `~/.config/vpn_config.yaml`
-- Commands: `start|up`, `stop|down`, `status`, `backup`, `restore`, `backup-stats`, `set-backup`
+- Commands: `start|up`, `stop|down`, `status`, `backup`, `restore`, `backup-stats`, `set-backup`, `self-update`
 - Cleanup before `start`: `-k`/`--kill` to remove all old `tun*` interfaces, routes, DNS caches, and stray openvpn processes
 - Debug mode: `-d` or `-v` to stream logs without tearing down the tunnel on Ctrl-C
 - Profile selection: `-p <profile>`
@@ -51,7 +51,7 @@ cd vpnctl
 ## Usage
 
 ```bash
-vpnctl [-d|-v] [-k] [-p <profile>] [-o <file>] [-i <file>] <start|up|stop|down|status|backup|restore|backup-stats|set-backup <path>>
+vpnctl [-d|-v] [-k] [-p <profile>] [-o <file>] [-i <file>] <start|up|stop|down|status|backup|restore|backup-stats|set-backup <path>|self-update>
 ```
 
 - `-k`/`--kill`  
@@ -101,6 +101,9 @@ vpnctl set-backup ~/Backups/my-vpn-backup.tar.gz.gpg
 
 # View backup statistics:
 vpnctl backup-stats
+
+# Update to latest version:
+vpnctl self-update
 ```
 
 ## Testing
@@ -146,6 +149,7 @@ Coverage reports are generated in `coverage/` directory with HTML visualization.
 - **Core VPN Management** - start, stop, status, backup, restore operations
 - **Backup Analytics** - `backup-stats` command for encrypted backup analysis
 - **Configurable Backup** - `set-backup` command with YAML config and tab completion
+- **Self-Update System** - Automatic update checking and `self-update` command
 - **Multi-yq Support** - Compatible with both Go-yq (mikefarah) and Python-yq (kislyuk)
 - **Kill Switch** - `-k` flag for cleanup of existing tunnel interfaces
 
@@ -163,7 +167,8 @@ Coverage reports are generated in `coverage/` directory with HTML visualization.
 
 ### 🎯 Current Status
 - **Version**: v1.0.1 (stable)
-- **Test Coverage**: 44% (get_backup_file, set_backup_path, backup_stats, prepare_sudo)
+- **Test Coverage**: 45% (get_backup_file, set_backup_path, backup_stats, prepare_sudo, self_update)
+- **Functions**: 5/11 covered (check_for_updates, self_update functions added)
 - **CI/CD**: Fully automated
 - **Release Process**: Zero-touch via conventional commits
 

@@ -7,8 +7,8 @@
 #   -p/--profile <key>             select profile
 #   -o/--output <file>             output path for backup (default vpn-backup.tar.gz.gpg)
 #   -i/--input <file>              input path for restore  (default vpn-backup.tar.gz.gpg)
-# Actions: start|up, stop|down, status, backup, restore, backup-stats, set-backup
-# Requires: yq (Go-yq or python-yq), openvpn, sudo, gpg (for backup/restore)
+# Actions: start|up, stop|down, status, backup, restore, backup-stats, set-backup, self-update
+# Requires: yq (Go-yq or python-yq), openvpn, sudo, gpg (for backup/restore), curl/wget (for self-update)
 
 set -euo pipefail
 
@@ -20,6 +20,9 @@ OUTPUT_FILE=""
 INPUT_FILE=""
 BACKUP_PATH=""
 ACTION=""
+CURRENT_VERSION="1.0.1"
+GITHUB_REPO="cdds-ab/vpnctl"
+UPDATE_CHECK_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/.vpnctl_update_check"
 
 # ─── Parse arguments ────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
@@ -95,6 +98,144 @@ get_backup_file(){
   
   # Fallback to default
   echo "$default_file"
+}
+
+check_for_updates(){
+  # Check if we should skip update check (max once per day)
+  if [[ -f "$UPDATE_CHECK_FILE" ]]; then
+    local last_check
+    last_check=$(stat -c %Y "$UPDATE_CHECK_FILE" 2>/dev/null || echo 0)
+    local current_time
+    current_time=$(date +%s)
+    local day_in_seconds=86400
+    
+    # Skip if checked less than 24 hours ago
+    if [[ $((current_time - last_check)) -lt $day_in_seconds ]]; then
+      return 0
+    fi
+  fi
+  
+  # Check for latest release on GitHub
+  local latest_version
+  if command -v curl >/dev/null 2>&1; then
+    latest_version=$(curl -s "https://api.github.com/repos/$GITHUB_REPO/releases/latest" \
+      | grep '"tag_name"' | cut -d'"' -f4 | sed 's/^v//' 2>/dev/null)
+  elif command -v wget >/dev/null 2>&1; then
+    latest_version=$(wget -qO- "https://api.github.com/repos/$GITHUB_REPO/releases/latest" \
+      | grep '"tag_name"' | cut -d'"' -f4 | sed 's/^v//' 2>/dev/null)
+  else
+    # No curl or wget available
+    return 0
+  fi
+  
+  # Update the check timestamp
+  touch "$UPDATE_CHECK_FILE" 2>/dev/null || true
+  
+  # Compare versions (simple string comparison for semantic versions)
+  if [[ -n "$latest_version" && "$latest_version" != "$CURRENT_VERSION" ]]; then
+    echo "🔄 Update available: $CURRENT_VERSION → $latest_version"
+    echo "   Run 'vpnctl self-update' to update to the latest version"
+    echo ""
+  fi
+}
+
+self_update(){
+  echo "🔄 Checking for vpnctl updates..."
+  
+  # Check for required tools
+  local download_tool=""
+  if command -v curl >/dev/null 2>&1; then
+    download_tool="curl"
+  elif command -v wget >/dev/null 2>&1; then
+    download_tool="wget"
+  else
+    echo "❌ Error: curl or wget required for self-update"
+    exit 1
+  fi
+  
+  # Get latest release info
+  local api_response
+  if [[ "$download_tool" == "curl" ]]; then
+    api_response=$(curl -s "https://api.github.com/repos/$GITHUB_REPO/releases/latest")
+  else
+    api_response=$(wget -qO- "https://api.github.com/repos/$GITHUB_REPO/releases/latest")
+  fi
+  
+  local latest_version
+  latest_version=$(echo "$api_response" | grep '"tag_name"' | cut -d'"' -f4 | sed 's/^v//' 2>/dev/null)
+  
+  if [[ -z "$latest_version" ]]; then
+    echo "❌ Error: Could not fetch latest version information"
+    exit 1
+  fi
+  
+  if [[ "$latest_version" == "$CURRENT_VERSION" ]]; then
+    echo "✅ Already running latest version: $CURRENT_VERSION"
+    exit 0
+  fi
+  
+  echo "📦 Updating from $CURRENT_VERSION to $latest_version..."
+  
+  # Create temporary directory for download
+  local temp_dir
+  temp_dir=$(mktemp -d)
+  trap 'rm -rf "$temp_dir"' EXIT
+  
+  # Download new version
+  local download_url="https://github.com/$GITHUB_REPO/releases/latest/download/vpnctl"
+  echo "⬇️  Downloading latest version..."
+  
+  if [[ "$download_tool" == "curl" ]]; then
+    curl -L -o "$temp_dir/vpnctl" "$download_url"
+  else
+    wget -O "$temp_dir/vpnctl" "$download_url"
+  fi
+  
+  # Verify download
+  if [[ ! -f "$temp_dir/vpnctl" ]]; then
+    echo "❌ Error: Failed to download new version"
+    exit 1
+  fi
+  
+  chmod +x "$temp_dir/vpnctl"
+  
+  # Verify the downloaded version
+  local downloaded_version
+  downloaded_version=$(grep '^CURRENT_VERSION=' "$temp_dir/vpnctl" | cut -d'"' -f2 2>/dev/null || echo "unknown")
+  
+  if [[ "$downloaded_version" != "$latest_version" ]]; then
+    echo "⚠️  Warning: Version mismatch in downloaded file"
+  fi
+  
+  # Find current vpnctl location
+  local current_vpnctl
+  current_vpnctl=$(command -v vpnctl 2>/dev/null)
+  
+  if [[ -z "$current_vpnctl" ]]; then
+    echo "❌ Error: Could not locate current vpnctl installation"
+    exit 1
+  fi
+  
+  echo "🔧 Installing new version to $current_vpnctl..."
+  
+  # Create backup of current version
+  cp "$current_vpnctl" "$current_vpnctl.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
+  
+  # Install new version (requires sudo for system installations)
+  if [[ -w "$(dirname "$current_vpnctl")" ]]; then
+    # User installation - no sudo needed
+    cp "$temp_dir/vpnctl" "$current_vpnctl"
+  else
+    # System installation - requires sudo
+    echo "🔒 Installing to system location, sudo required..."
+    sudo cp "$temp_dir/vpnctl" "$current_vpnctl"
+  fi
+  
+  # Reset update check file to trigger immediate version check
+  rm -f "$UPDATE_CHECK_FILE" 2>/dev/null || true
+  
+  echo "✅ Successfully updated to version $latest_version"
+  echo "   Restart any running VPN connections to use the new version"
 }
 
 set_backup_path(){
@@ -289,9 +430,17 @@ case "$ACTION" in
   restore)     restore_cfg; exit 0 ;;
   backup-stats) backup_stats; exit 0 ;;
   set-backup)  set_backup_path; exit 0 ;;
+  self-update) self_update; exit 0 ;;
 esac
 
 # ─── From here only VPN commands (start/stop/status) ─────────────────────────
+
+# Check for updates on VPN actions (but not on self-update to avoid recursion)
+case "$ACTION" in
+  start|up|stop|down|status)
+    check_for_updates
+    ;;
+esac
 
 # Common prechecks
 [[ -f "$CONFIG_FILE" ]] || { echo "❌ Config file not found: $CONFIG_FILE" >&2; exit 1; }

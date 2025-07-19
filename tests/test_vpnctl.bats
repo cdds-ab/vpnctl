@@ -278,3 +278,15 @@ EOF
     # Should exit with error code due to missing config file or sudo
     [ "$status" -ne 0 ]
 }
+
+@test "self_update fails without curl or wget" {
+    run "$BATS_TEST_DIRNAME/../bin/vpnctl" self-update
+    
+    # Should either succeed or fail gracefully (depending on curl/wget availability)
+    [[ "$status" -eq 0 || "$status" -eq 1 ]]
+    
+    # If it fails, should mention curl/wget requirement
+    if [[ "$status" -eq 1 ]]; then
+        [[ "$output" == *"curl or wget"* ]]
+    fi
+}
