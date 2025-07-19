@@ -43,7 +43,7 @@ while [[ $# -gt 0 ]]; do
       shift
       [[ -z "$1" || "$1" == -* ]] && { echo "❌ Missing file after -i/--input" >&2; exit 1; }
       INPUT_FILE="$1"; shift ;;
-    start|up|stop|down|status|backup|restore|backup-stats)
+    start|up|stop|down|status|backup|restore|backup-stats|self-update)
       [[ -n "$ACTION" ]] && { echo "❌ Multiple actions: $ACTION and $1" >&2; exit 1; }
       ACTION="$1"; shift ;;
     set-backup)
@@ -53,7 +53,7 @@ while [[ $# -gt 0 ]]; do
       BACKUP_PATH="$1"; shift ;;
     *)
       echo "❌ Unknown argument: $1" >&2
-      echo "Usage: vpnctl [-d|-v] [-k] [-p <profile>] [-o <file>] [-i <file>] <start|up|stop|down|status|backup|restore|backup-stats|set-backup <path>>" >&2
+      echo "Usage: vpnctl [-d|-v] [-k] [-p <profile>] [-o <file>] [-i <file>] <start|up|stop|down|status|backup|restore|backup-stats|set-backup <path>|self-update>" >&2
       exit 1 ;;
   esac
 done
