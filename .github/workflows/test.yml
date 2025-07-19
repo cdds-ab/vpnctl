@@ -87,24 +87,24 @@ jobs:
               if (coverage >= 80) emoji = '🟢';
               else if (coverage >= 60) emoji = '🟡';
               
-              const body = `## ${emoji} Coverage Report (${{ matrix.yq-variant }})
+              const body = \`## \${emoji} Coverage Report (${{ matrix.yq-variant }})
               
-  **Overall Coverage: ${coverage}%** (${coveredLines}/${totalLines} lines)
+              **Overall Coverage: \${coverage}%** (\${coveredLines}/\${totalLines} lines)
 
   | File | Coverage | Lines |
   |------|----------|-------|
-  | bin/vpnctl | ${summary.files['bin/vpnctl'].percentage}% | ${summary.files['bin/vpnctl'].covered_lines}/${summary.files['bin/vpnctl'].total_lines} |
+              | bin/vpnctl | \${summary.files['bin/vpnctl'].percentage}% | \${summary.files['bin/vpnctl'].covered_lines}/\${summary.files['bin/vpnctl'].total_lines} |
 
-  ${coverage >= 80 ? '✅ Coverage threshold met!' : '⚠️ Coverage below 80% threshold'}
+              \${coverage >= 80 ? '✅ Coverage threshold met!' : '⚠️ Coverage below 80% threshold'}
 
-  <details>
-  <summary>View detailed coverage report</summary>
+              <details>
+              <summary>View detailed coverage report</summary>
 
-  \`\`\`
-  ${fs.readFileSync('coverage/coverage_report.txt', 'utf8')}
-  \`\`\`
+              \\\`\\\`\\\`
+              \${fs.readFileSync('coverage/coverage_report.txt', 'utf8')}
+              \\\`\\\`\\\`
 
-  </details>`;
+              </details>\`;
 
               github.rest.issues.createComment({
                 issue_number: context.issue.number,
