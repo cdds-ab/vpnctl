@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/cdds-ab/vpnctl/compare/v1.3.0...v1.4.0) (2025-07-19)
+
+
+### Features
+
+* implement automated pre-commit hooks with GitHub CLI integration ([5c6b52a](https://github.com/cdds-ab/vpnctl/commit/5c6b52a260a735a54a8e3af5c9b01d6093708551))
+
 # [1.3.0](https://github.com/cdds-ab/vpnctl/compare/v1.2.2...v1.3.0) (2025-07-19)
 
 
