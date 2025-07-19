@@ -31,11 +31,23 @@ mock_yq_go() {
         "--version"*)
             echo "yq (https://github.com/mikefarah/yq/) version 4.35.2 (with eval support)"
             ;;
-        *"backup.default_file"*)
-            if [[ "$*" == *"-i"* ]]; then
-                # Simulate in-place edit for Go-yq
-                local config_file="${@: -1}"
-                sed -i 's|default_file:.*|default_file: "'"$BACKUP_PATH"'"|' "$config_file"
+        "eval"*"-i"*)
+            # Go-yq eval with in-place edit: yq eval '.backup.default_file = "path"' -i file
+            local config_file="${@: -1}"
+            # Extract the path from the command
+            local path_value
+            path_value=$(echo "$*" | sed 's/.*= *"\([^"]*\)".*/\1/')
+            
+            # Create backup section if it doesn't exist, then update
+            if ! grep -q "^backup:" "$config_file"; then
+                echo "backup:" >> "$config_file"
+            fi
+            
+            # Update or add default_file
+            if grep -q "default_file:" "$config_file"; then
+                sed -i 's|  default_file:.*|  default_file: "'"$path_value"'"|' "$config_file"
+            else
+                sed -i '/^backup:/a\  default_file: "'"$path_value"'"' "$config_file"
             fi
             ;;
     esac
