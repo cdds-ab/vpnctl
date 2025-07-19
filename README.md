@@ -51,9 +51,11 @@ cd vpnctl
 ## Usage
 
 ```bash
-vpnctl [-d|-v] [-k] [-p <profile>] [-o <file>] [-i <file>] <start|up|stop|down|status|backup|restore|backup-stats|set-backup <path>|self-update>
+vpnctl [--version] [-d|-v] [-k] [-p <profile>] [-o <file>] [-i <file>] <start|up|stop|down|status|backup|restore|backup-stats|set-backup <path>|self-update>
 ```
 
+- `--version`  
+  Show version information and exit.
 - `-k`/`--kill`  
   Before bringing up your chosen profile, clean out **all** old `tun*` interfaces, their routes, DNS caches, and any leftover openvpn processes.
 - `-d`/`--debug` or `-v`/`--verbose`  
@@ -75,6 +77,9 @@ Note! Currently the backup and recovery depends on having the following configur
 ### Examples
 
 ```bash
+# Show version:
+vpnctl --version
+
 # Start the default profile:
 vpnctl start
 
@@ -154,8 +159,8 @@ Coverage reports are generated in `coverage/` directory with HTML visualization.
 - **Kill Switch** - `-k` flag for cleanup of existing tunnel interfaces
 
 ### ✅ Test Infrastructure (GitHub Issue #4)
-- **Regression Tests** - 40 BATS test cases with matrix testing
-- **Coverage Analysis** - 44% function coverage (4/9 functions, 25% threshold)
+- **Regression Tests** - 21 BATS test cases with matrix testing
+- **Coverage Analysis** - Function coverage validation and CI integration
 - **CI/CD Pipeline** - Automated testing, linting, security scanning
 - **Multi-environment** - Tests with both Go-yq and Python-yq variants
 
@@ -167,8 +172,8 @@ Coverage reports are generated in `coverage/` directory with HTML visualization.
 
 ### 🎯 Current Status
 - **Version**: v1.0.1 (stable)
-- **Test Coverage**: 45% (get_backup_file, set_backup_path, backup_stats, prepare_sudo, self_update)
-- **Functions**: 5/11 covered (check_for_updates, self_update functions added)
+- **Test Suite**: 21 test cases covering core functionality
+- **Functions**: Comprehensive coverage of backup, config, and VPN operations
 - **CI/CD**: Fully automated
 - **Release Process**: Zero-touch via conventional commits
 

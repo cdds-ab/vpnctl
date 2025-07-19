@@ -19,7 +19,7 @@ labels: ['bug', 'needs-triage']
 
 ## 🔍 Environment
 **OS:** 
-**vpnctl version:** `vpnctl --version` or check with `head -1 /usr/local/bin/vpnctl`
+**vpnctl version:** `vpnctl --version`
 **yq version:** `yq --version`
 
 ## 📎 Additional Context

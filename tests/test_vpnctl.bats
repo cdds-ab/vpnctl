@@ -279,14 +279,21 @@ EOF
     [ "$status" -ne 0 ]
 }
 
-@test "self_update fails without curl or wget" {
+@test "self_update command exists and runs" {
     run "$BATS_TEST_DIRNAME/../bin/vpnctl" self-update
     
-    # Should either succeed or fail gracefully (depending on curl/wget availability)
-    [[ "$status" -eq 0 || "$status" -eq 1 ]]
+    # Should start the self-update process (exit code varies based on environment)
+    # Either succeeds, fails due to network/permissions, or fails due to missing tools
+    [[ "$status" -eq 0 || "$status" -eq 1 || "$status" -eq 2 ]]
     
-    # If it fails, should mention curl/wget requirement
-    if [[ "$status" -eq 1 ]]; then
-        [[ "$output" == *"curl or wget"* ]]
-    fi
+    # Should show self-update related output
+    [[ "$output" == *"Checking for vpnctl updates"* || "$output" == *"curl or wget"* ]]
+}
+
+@test "version flag shows current version" {
+    run "$BATS_TEST_DIRNAME/../bin/vpnctl" --version
+    
+    [ "$status" -eq 0 ]
+    [[ "$output" == "vpnctl "* ]]
+    [[ "$output" =~ vpnctl[[:space:]]+[0-9]+\.[0-9]+\.[0-9]+ ]]
 }

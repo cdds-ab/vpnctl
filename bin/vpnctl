@@ -2,6 +2,7 @@
 #
 # vpnctl — manage multiple OpenVPN profiles via a YAML config.
 # Supports:
+#   --version                      show version information
 #   -d/--debug, -v/--verbose       stream logs without tearing down on Ctrl-C
 #   -k/--kill                      purge old tun* devices, routes, DNS caches & openvpn procs
 #   -p/--profile <key>             select profile
@@ -31,6 +32,9 @@ while [[ $# -gt 0 ]]; do
       DEBUG=true; shift ;;
     -k|--kill)
       KILL_OLD=true; shift ;;
+    --version)
+      echo "vpnctl $CURRENT_VERSION"
+      exit 0 ;;
     -p|--profile)
       shift
       [[ -z "$1" || "$1" == -* ]] && { echo "❌ Missing profile after -p" >&2; exit 1; }
@@ -53,7 +57,7 @@ while [[ $# -gt 0 ]]; do
       BACKUP_PATH="$1"; shift ;;
     *)
       echo "❌ Unknown argument: $1" >&2
-      echo "Usage: vpnctl [-d|-v] [-k] [-p <profile>] [-o <file>] [-i <file>] <start|up|stop|down|status|backup|restore|backup-stats|set-backup <path>|self-update>" >&2
+      echo "Usage: vpnctl [--version] [-d|-v] [-k] [-p <profile>] [-o <file>] [-i <file>] <start|up|stop|down|status|backup|restore|backup-stats|set-backup <path>|self-update>" >&2
       exit 1 ;;
   esac
 done

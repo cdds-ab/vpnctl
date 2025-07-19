@@ -42,7 +42,7 @@ _vpnctl_completions(){
 
   # flags
   if [[ "$cur" == -* ]]; then
-    COMPREPLY=( $(compgen -W "-d -v -k -p -o -i --debug --verbose --kill --profile --output --input" -- "$cur") )
+    COMPREPLY=( $(compgen -W "-d -v -k -p -o -i --debug --verbose --kill --profile --output --input --version" -- "$cur") )
     return
   fi
 
