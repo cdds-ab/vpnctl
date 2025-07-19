@@ -199,10 +199,18 @@ jobs:
           echo "🔍 Checking for potential security issues..."
 
           # Check for hardcoded passwords/secrets
-          if grep -r "password\|secret\|token\|key" \
+          if grep -r "password\|secret\|token" \
                --include="*.sh" --include="*vpnctl*" . | \
                grep -v "test\|comment\|#"; then
             echo "⚠️ Potential hardcoded secrets found"
+            exit 1
+          fi
+          
+          # Check for hardcoded keys (excluding yq path expressions)
+          if grep -r '\bkey\b' \
+               --include="*.sh" --include="*vpnctl*" . | \
+               grep -v "test\|comment\|#\|yq.*keys\|\.key\|\[key\]"; then
+            echo "⚠️ Potential hardcoded keys found"
             exit 1
           fi
 
