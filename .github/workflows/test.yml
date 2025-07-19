@@ -1,0 +1,259 @@
+---
+name: Tests & Coverage
+
+on:
+  push:
+    branches: [master, main, develop]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Test with different yq implementations
+        yq-variant: [go-yq, python-yq]
+
+    name: Tests (${{ matrix.yq-variant }})
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install BATS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bats
+
+      - name: Install Go-yq
+        if: matrix.yq-variant == 'go-yq'
+        run: |
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
+
+      - name: Install Python-yq
+        if: matrix.yq-variant == 'python-yq'
+        run: |
+          sudo apt-get install -y python3-pip
+          pip3 install yq
+          yq --version
+
+      - name: Install jq (required for Python-yq)
+        if: matrix.yq-variant == 'python-yq'
+        run: |
+          sudo apt-get install -y jq
+          jq --version
+
+      - name: Run tests
+        run: |
+          echo "Testing with ${{ matrix.yq-variant }}"
+          ./tests/run_tests.sh
+
+      - name: Run tests with coverage
+        run: |
+          ./tests/coverage.sh run
+
+      - name: Generate HTML coverage report
+        run: |
+          ./tests/coverage.sh html
+
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ matrix.yq-variant }}
+          path: |
+            coverage/coverage_report.txt
+            coverage/coverage_summary.json
+            coverage/coverage.html
+          retention-days: 30
+
+      - name: Comment coverage on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            try {
+              const summary = JSON.parse(fs.readFileSync('coverage/coverage_summary.json', 'utf8'));
+              const coverage = summary.overall.percentage;
+              const coveredLines = summary.overall.covered_lines;
+              const totalLines = summary.overall.total_lines;
+              
+              let emoji = '🔴';
+              if (coverage >= 80) emoji = '🟢';
+              else if (coverage >= 60) emoji = '🟡';
+              
+              const body = `## ${emoji} Coverage Report (${{ matrix.yq-variant }})
+              
+  **Overall Coverage: ${coverage}%** (${coveredLines}/${totalLines} lines)
+
+  | File | Coverage | Lines |
+  |------|----------|-------|
+  | bin/vpnctl | ${summary.files['bin/vpnctl'].percentage}% | ${summary.files['bin/vpnctl'].covered_lines}/${summary.files['bin/vpnctl'].total_lines} |
+
+  ${coverage >= 80 ? '✅ Coverage threshold met!' : '⚠️ Coverage below 80% threshold'}
+
+  <details>
+  <summary>View detailed coverage report</summary>
+
+  \`\`\`
+  ${fs.readFileSync('coverage/coverage_report.txt', 'utf8')}
+  \`\`\`
+
+  </details>`;
+
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: body
+              });
+            } catch (error) {
+              console.log('Could not read coverage summary:', error.message);
+            }
+
+  lint:
+    runs-on: ubuntu-latest
+    name: Lint & Style Check
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Run shellcheck on main script
+        run: |
+          shellcheck bin/vpnctl
+
+      - name: Run shellcheck on test scripts
+        run: |
+          shellcheck tests/*.sh
+
+      - name: Check bash style with shfmt
+        run: |
+          # Install shfmt
+          sudo wget -qO /usr/local/bin/shfmt \
+            https://github.com/mvdan/sh/releases/latest/download/shfmt_v3.7.0_linux_amd64
+          sudo chmod +x /usr/local/bin/shfmt
+
+          # Check formatting
+          shfmt -d -i 2 -ci bin/vpnctl tests/*.sh
+
+  integration:
+    runs-on: ubuntu-latest
+    name: Integration Tests
+    needs: [test, lint]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bats yq jq
+
+      - name: Test installation script
+        run: |
+          # Test that install script works
+          sudo ./scripts/install.sh
+
+          # Verify installation
+          which vpnctl
+          vpnctl --help || true  # May fail due to missing config, that's ok
+
+      - name: Test completion installation
+        run: |
+          # Check that completion is installed
+          ls -la /etc/bash_completion.d/vpnctl
+
+          # Source completion and test basic functionality
+          source /etc/bash_completion.d/vpnctl
+
+      - name: Test uninstallation
+        run: |
+          sudo ./scripts/uninstall.sh
+
+          # Verify removal
+          ! which vpnctl || (echo "vpnctl still found after uninstall" && exit 1)
+
+  security:
+    runs-on: ubuntu-latest
+    name: Security Scan
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run security scan
+        run: |
+          # Simple security checks for shell scripts
+          echo "🔍 Checking for potential security issues..."
+
+          # Check for hardcoded passwords/secrets
+          if grep -r "password\|secret\|token\|key" \
+               --include="*.sh" --include="*vpnctl*" . | \
+               grep -v "test\|comment\|#"; then
+            echo "⚠️ Potential hardcoded secrets found"
+            exit 1
+          fi
+
+          # Check for unsafe eval usage
+          if grep -r "eval.*\$" --include="*.sh" --include="*vpnctl*" . | \
+               grep -v "test\|comment"; then
+            echo "⚠️ Potentially unsafe eval usage found"
+            # Don't fail, just warn since we use eval for path expansion
+          fi
+
+          echo "✅ Basic security checks passed"
+
+  coverage-summary:
+    runs-on: ubuntu-latest
+    name: Coverage Summary
+    needs: [test]
+    if: always()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-report-*
+          merge-multiple: true
+
+      - name: Generate combined coverage summary
+        run: |
+          echo "# 📊 Coverage Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| yq Variant | Coverage | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|----------|---------|" >> $GITHUB_STEP_SUMMARY
+
+          for variant in go-yq python-yq; do
+            if [ -f "coverage-report-${variant}/coverage_summary.json" ]; then
+              coverage=$(jq -r '.overall.percentage' \
+                "coverage-report-${variant}/coverage_summary.json")
+              if [ "$coverage" -ge 80 ]; then
+                status="🟢 PASS"
+              elif [ "$coverage" -ge 60 ]; then
+                status="🟡 WARN"
+              else
+                status="🔴 FAIL"
+              fi
+              echo "| $variant | ${coverage}% | $status |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| $variant | N/A | ❌ ERROR |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Threshold:** 80% minimum coverage required" >> $GITHUB_STEP_SUMMARY

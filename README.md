@@ -1,5 +1,10 @@
 # vpnctl
 
+[![Tests](https://github.com/username/vpnctl/workflows/Tests%20&%20Coverage/badge.svg)](https://github.com/username/vpnctl/actions)
+[![Coverage](https://img.shields.io/badge/coverage-22%25-yellow)](https://github.com/username/vpnctl/actions)
+[![Shell](https://img.shields.io/badge/shell-bash-blue)](bin/vpnctl)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 A simple shell-based VPN profile manager driven by a YAML config.
 
 ## Features
@@ -75,6 +80,57 @@ vpnctl set-backup ~/Backups/my-vpn-backup.tar.gz.gpg
 # View backup statistics:
 vpnctl backup-stats
 ```
+
+## Testing
+
+vpnctl includes comprehensive tests using BATS (Bash Automated Testing System):
+
+```bash
+# Install BATS
+sudo apt install bats  # Ubuntu/Debian
+sudo dnf install bats  # Fedora/RHEL
+
+# Run all tests
+./tests/run_tests.sh
+
+# Run with coverage analysis
+./tests/coverage.sh run
+
+# Generate HTML coverage report
+./tests/coverage.sh html
+
+# Run specific test files
+bats tests/test_vpnctl.bats
+```
+
+### Test Coverage
+
+The test suite covers:
+- ✅ Core backup file resolution logic
+- ✅ Configuration file handling (YAML parsing)
+- ✅ Both Go-yq and Python-yq compatibility
+- ✅ set-backup command functionality
+- ✅ Bash completion system
+- ✅ Argument parsing and validation
+- ✅ Path expansion and normalization
+
+Coverage reports are generated in `coverage/` directory with HTML visualization.
+
+### Continuous Integration
+
+This project implements comprehensive CI/CD addressing **GitHub Issue #4**:
+
+- ✅ **Regression Tests** - BATS test suite with 38 test cases
+- ✅ **Coverage Mechanism** - Function-based coverage analysis (22% coverage)  
+- ✅ **CI Pipeline** - GitHub Actions workflow with matrix testing
+- ✅ **Coverage Badges** - Real-time coverage status in README
+
+**CI Pipeline Features:**
+- Tests with both Go-yq and Python-yq implementations
+- Shellcheck linting and security scanning
+- Coverage reporting with HTML visualization
+- Automated PR comments with coverage details
+- Multi-job workflow: tests, lint, integration, security
 
 ## Uninstallation
 

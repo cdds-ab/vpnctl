@@ -30,6 +30,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   2. Config file (`backup.default_file`) - medium priority  
   3. Default location (`vpn-backup.tar.gz.gpg`) - fallback
 
+**Test Infrastructure & CI/CD (GitHub Issue #4)**
+- Comprehensive BATS test suite with 38 test cases
+- Function-based code coverage analysis (22% coverage)
+- GitHub Actions CI/CD pipeline with matrix testing
+- HTML coverage reports with visualization
+- Automated regression testing on every commit
+- Multi-environment testing (Go-yq vs Python-yq)
+- README badges for test status and coverage
+
 ### Changed
 
 **Enhanced yq Compatibility**
@@ -59,6 +68,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Arguments Added:** `BACKUP_PATH` variable, `set-backup <path>` command
 - **YAML Operations:** Robust backup configuration management
 - **Error Handling:** Improved validation and user feedback
+- **CI/CD Pipeline:** GitHub Actions workflow addressing Issue #4
+- **Test Infrastructure:** 38 BATS tests with 22% function coverage
+- **Coverage Reporting:** HTML and JSON coverage reports
 
 ### Usage Examples
 
