@@ -5,7 +5,7 @@ A simple shell-based VPN profile manager driven by a YAML config.
 ## Features
 
 - Multiple profiles in `~/.config/vpn_config.yaml`
-- Commands: `start|up`, `stop|down`, `status`, `backup`, `restore`
+- Commands: `start|up`, `stop|down`, `status`, `backup`, `restore`, `backup-stats`, `set-backup`
 - Cleanup before `start`: `-k`/`--kill` to remove all old `tun*` interfaces, routes, DNS caches, and stray openvpn processes
 - Debug mode: `-d` or `-v` to stream logs without tearing down the tunnel on Ctrl-C
 - Profile selection: `-p <profile>`
@@ -24,7 +24,7 @@ cd vpnctl
 ## Usage
 
 ```bash
-vpnctl [-d|-v] [-k] [-p <profile>] [-o <file>] [-i <file>] <start|up|stop|down|status|backup|restore>
+vpnctl [-d|-v] [-k] [-p <profile>] [-o <file>] [-i <file>] <start|up|stop|down|status|backup|restore|backup-stats|set-backup <path>>
 ```
 
 - `-k`/`--kill`  
@@ -68,6 +68,12 @@ vpnctl -p customer1 stop
 
 # Check status:
 vpnctl status
+
+# Set backup location in config:
+vpnctl set-backup ~/Backups/my-vpn-backup.tar.gz.gpg
+
+# View backup statistics:
+vpnctl backup-stats
 ```
 
 ## Uninstallation
@@ -77,13 +83,16 @@ cd vpnctl
 ./scripts/uninstall.sh
 ```
 
-## Configuration tips
+## Configuration
 
 `vpnctl` expects your configuration residing in `~/.config/vpn_config.yaml`:
 
 ```yaml
 # Sample VPN config for vpnctl
 # Copy to ~/.config/vpn_config.yaml and adjust paths.
+
+backup:
+  default_file: "$HOME/vpn-backup.tar.gz.gpg"
 
 vpn:
   default:
@@ -93,9 +102,42 @@ vpn:
     config: "~/vpn/other.ovpn"
 ```
 
+### Backup Configuration
+
+The `backup.default_file` setting allows you to specify a default location for backup operations:
+
+- **Without config**: Uses `vpn-backup.tar.gz.gpg` in current directory
+- **With config**: Uses the configured path (supports `~` and `$HOME` expansion)
+- **Command line override**: `-o` and `-i` flags always take precedence
+
+**Examples:**
+```yaml
+backup:
+  default_file: "~/Backups/vpn-backup.tar.gz.gpg"        # Home directory
+  default_file: "/var/backups/vpn-backup.tar.gz.gpg"     # Absolute path
+  default_file: "$HOME/Documents/vpn-backup.tar.gz.gpg"  # Variable expansion
+```
+
+### Setting Backup Location
+
+Use the `set-backup` command to easily configure your backup location with tab completion:
+
+```bash
+# Set backup path (supports tab completion for file paths)
+vpnctl set-backup ~/Backups/vpn-backup.tar.gz.gpg
+
+# The command will automatically update your ~/.config/vpn_config.yaml
+# All backup operations will now use this location by default
+```
+
+### Example Configuration
+
 I personally set it up like this:
 
 ```yaml
+backup:
+  default_file: "$HOME/Backups/vpn-backup.tar.gz.gpg"
+
 vpn:
   customer1:
     config: "$HOME/.vpn/customer1/config.ovpn"

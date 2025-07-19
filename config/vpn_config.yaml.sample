@@ -1,6 +1,9 @@
 # Sample VPN config for vpnctl
 # Copy to ~/.config/vpn_config.yaml and adjust paths.
 
+backup:
+  default_file: "$HOME/vpn-backup.tar.gz.gpg"
+
 vpn:
   default:
     config: "$HOME/.vpn/default.ovpn"

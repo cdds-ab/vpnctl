@@ -7,7 +7,7 @@
 #   -p/--profile <key>             select profile
 #   -o/--output <file>             output path for backup (default vpn-backup.tar.gz.gpg)
 #   -i/--input <file>              input path for restore  (default vpn-backup.tar.gz.gpg)
-# Actions: start|up, stop|down, status, backup, restore
+# Actions: start|up, stop|down, status, backup, restore, backup-stats, set-backup
 # Requires: yq (Go-yq or python-yq), openvpn, sudo, gpg (for backup/restore)
 
 set -euo pipefail
@@ -18,9 +18,10 @@ KILL_OLD=false
 PROFILE_KEY=""
 OUTPUT_FILE=""
 INPUT_FILE=""
+BACKUP_PATH=""
 ACTION=""
 
-# ─── Argumente parsen ───────────────────────────────────────────────────────
+# ─── Parse arguments ────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -d|--debug|-v|--verbose)
@@ -39,22 +40,104 @@ while [[ $# -gt 0 ]]; do
       shift
       [[ -z "$1" || "$1" == -* ]] && { echo "❌ Missing file after -i/--input" >&2; exit 1; }
       INPUT_FILE="$1"; shift ;;
-    start|up|stop|down|status|backup|restore)
+    start|up|stop|down|status|backup|restore|backup-stats)
       [[ -n "$ACTION" ]] && { echo "❌ Multiple actions: $ACTION and $1" >&2; exit 1; }
       ACTION="$1"; shift ;;
+    set-backup)
+      [[ -n "$ACTION" ]] && { echo "❌ Multiple actions: $ACTION and $1" >&2; exit 1; }
+      ACTION="$1"; shift
+      [[ -z "$1" || "$1" == -* ]] && { echo "❌ Missing backup path after set-backup" >&2; exit 1; }
+      BACKUP_PATH="$1"; shift ;;
     *)
       echo "❌ Unknown argument: $1" >&2
-      echo "Usage: vpnctl [-d|-v] [-k] [-p <profile>] [-o <file>] [-i <file>] <start|up|stop|down|status|backup|restore>" >&2
+      echo "Usage: vpnctl [-d|-v] [-k] [-p <profile>] [-o <file>] [-i <file>] <start|up|stop|down|status|backup|restore|backup-stats|set-backup <path>>" >&2
       exit 1 ;;
   esac
 done
 
-# ─── Action muss gesetzt sein ───────────────────────────────────────────────
+# ─── Action must be set ─────────────────────────────────────────────────────
 [[ -n "$ACTION" ]] || { echo "❌ No action specified." >&2; exit 1; }
 
-#── Funktionen für Backup/Restore ─────────────────────────────────────────────
+# Get backup file path from config or fallback to default
+get_backup_file(){
+  local file_type="$1"  # "output" or "input"
+  local config_file="${XDG_CONFIG_HOME:-$HOME/.config}/vpn_config.yaml"
+  local default_file="vpn-backup.tar.gz.gpg"
+  
+  # Check if -o or -i was provided
+  if [[ "$file_type" == "output" && -n "$OUTPUT_FILE" ]]; then
+    echo "$OUTPUT_FILE"
+    return
+  elif [[ "$file_type" == "input" && -n "$INPUT_FILE" ]]; then
+    echo "$INPUT_FILE"
+    return
+  fi
+  
+  # Try to get from config file
+  if [[ -f "$config_file" ]]; then
+    local config_backup
+    if yq --version 2>&1 | grep -q 'eval'; then
+      config_backup=$(yq eval -r '.backup.default_file' "$config_file" 2>/dev/null)
+    else
+      config_backup=$(yq '.backup.default_file' "$config_file" 2>/dev/null)
+      config_backup="${config_backup%\"}"; config_backup="${config_backup#\"}"
+      config_backup="${config_backup%\'}"; config_backup="${config_backup#\'}"
+    fi
+    
+    if [[ -n "$config_backup" && "$config_backup" != "null" ]]; then
+      # Expand path variables
+      config_backup="${config_backup/#\~/$HOME}"
+      config_backup=$(eval echo "\"$config_backup\"")
+      echo "$config_backup"
+      return
+    fi
+  fi
+  
+  # Fallback to default
+  echo "$default_file"
+}
+
+set_backup_path(){
+  local new_path="$BACKUP_PATH"
+  local config_file="${XDG_CONFIG_HOME:-$HOME/.config}/vpn_config.yaml"
+  
+  # Expand path variables for validation
+  new_path="${new_path/#\~/$HOME}"
+  new_path=$(eval echo "\"$new_path\"")
+  
+  echo "📁 Setting backup path to: $new_path"
+  
+  # Create config file if it doesn't exist
+  if [[ ! -f "$config_file" ]]; then
+    echo "📝 Creating new config file: $config_file"
+    mkdir -p "$(dirname "$config_file")"
+    cat > "$config_file" << EOF
+backup:
+  default_file: "$BACKUP_PATH"
+
+vpn:
+  # Add your VPN profiles here
+EOF
+    echo "✅ Config file created with backup path set."
+    return
+  fi
+  
+  # Check if backup section exists and update/create it
+  if yq --version 2>&1 | grep -q 'eval'; then
+    # Go-yq syntax
+    yq eval '.backup.default_file = "'"$BACKUP_PATH"'"' -i "$config_file"
+  else
+    # Python-yq: convert to JSON, update with jq, convert back to YAML
+    local temp_file=$(mktemp)
+    yq -j '.' "$config_file" | jq '.backup.default_file = "'"$BACKUP_PATH"'"' | yq -y '.' > "$temp_file" && mv "$temp_file" "$config_file"
+  fi
+  
+  echo "✅ Backup path updated in $config_file"
+}
+
+#── Functions for Backup/Restore ─────────────────────────────────────────────
 backup_cfg(){
-  local out="${OUTPUT_FILE:-vpn-backup.tar.gz.gpg}"
+  local out=$(get_backup_file "output")
   echo "🔐 Creating encrypted backup → $out"
   cd "$HOME"
   tar czpf - .config/vpn_config.yaml .vpn | \
@@ -63,7 +146,7 @@ backup_cfg(){
 }
 
 restore_cfg(){
-  local in="${INPUT_FILE:-vpn-backup.tar.gz.gpg}"
+  local in=$(get_backup_file "input")
   [[ -f "$in" ]] || { echo "❌ Backup file '$in' not found."; exit 1; }
   echo "🔓 Restoring from encrypted backup → $in"
   cd "$HOME"
@@ -71,19 +154,135 @@ restore_cfg(){
   echo "✅ Configuration restored."
 }
 
-# ─── Bei backup/restore direkt aussteigen ────────────────────────────────────
+backup_stats(){
+  local in=$(get_backup_file "input")
+  [[ -f "$in" ]] || { echo "❌ Backup file '$in' not found."; exit 1; }
+  
+  echo "📊 Backup Statistics: $in"
+  echo "══════════════════════════════════════"
+  
+  # Get backup file info
+  local backup_size=$(du -h "$in" 2>/dev/null | cut -f1)
+  local backup_date=$(stat -c %y "$in" 2>/dev/null | cut -d' ' -f1,2 | cut -d'.' -f1)
+  echo "📁 Size: $backup_size"
+  echo "📅 Created: $backup_date"
+  echo
+  
+  # Extract and analyze backup content temporarily
+  local temp_dir=$(mktemp -d)
+  trap "rm -rf '$temp_dir'" EXIT
+  
+  echo "🔍 Analyzing backup content..."
+  cd "$temp_dir"
+  if gpg --batch --quiet -d "$in" | tar xzf - 2>/dev/null; then
+    # Check if vpn_config.yaml exists in backup
+    if [[ -f ".config/vpn_config.yaml" ]]; then
+      echo "✅ VPN config found in backup"
+      
+      # Extract profile names from backup
+      local backup_profiles
+      if yq --version 2>&1 | grep -q 'eval'; then
+        backup_profiles=$(yq eval '.vpn | keys | .[]' ".config/vpn_config.yaml" 2>/dev/null)
+      else
+        backup_profiles=$(yq '.vpn | keys | .[]' ".config/vpn_config.yaml" 2>/dev/null)
+      fi
+      
+      echo "🔗 Profiles in backup:"
+      if [[ -n "$backup_profiles" ]]; then
+        echo "$backup_profiles" | sed 's/^/  • /' | sed 's/"//g'
+        local profile_count=$(echo "$backup_profiles" | wc -l)
+        echo "   Total: $profile_count profiles"
+      else
+        echo "  ❌ No profiles found"
+      fi
+    else
+      echo "❌ No VPN config found in backup"
+    fi
+    
+    # Check .vpn directory
+    if [[ -d ".vpn" ]]; then
+      echo
+      echo "📂 VPN configs in backup:"
+      find ".vpn" -name "*.ovpn" | sed 's|^\.vpn/||' | sed 's/^/  • /'
+      local config_count=$(find ".vpn" -name "*.ovpn" | wc -l)
+      echo "   Total: $config_count .ovpn files"
+    else
+      echo "❌ No .vpn directory found in backup"
+    fi
+    
+    # Compare with current configuration
+    echo
+    echo "🔄 Synchronization Status:"
+    local current_config="$HOME/.config/vpn_config.yaml"
+    if [[ -f "$current_config" ]]; then
+      # Create temporary files without backup.default_file for comparison
+      local temp_current=$(mktemp)
+      local temp_backup=$(mktemp)
+      trap "rm -f '$temp_current' '$temp_backup'" EXIT
+      
+      # Strip backup.default_file from both configs for comparison
+      if yq --version 2>&1 | grep -q 'eval'; then
+        yq eval 'del(.backup.default_file)' "$current_config" > "$temp_current" 2>/dev/null || cp "$current_config" "$temp_current"
+        yq eval 'del(.backup.default_file)' ".config/vpn_config.yaml" > "$temp_backup" 2>/dev/null || cp ".config/vpn_config.yaml" "$temp_backup"
+      else
+        yq 'del(.backup.default_file)' "$current_config" > "$temp_current" 2>/dev/null || cp "$current_config" "$temp_current"
+        yq 'del(.backup.default_file)' ".config/vpn_config.yaml" > "$temp_backup" 2>/dev/null || cp ".config/vpn_config.yaml" "$temp_backup"
+      fi
+      
+      # Compare config files (excluding backup.default_file)
+      if diff -q "$temp_backup" "$temp_current" &>/dev/null; then
+        echo "✅ Current config matches backup (ignoring backup path differences)"
+      else
+        echo "⚠️  Current config differs from backup"
+        
+        # Show profile differences
+        local current_profiles
+        if yq --version 2>&1 | grep -q 'eval'; then
+          current_profiles=$(yq eval '.vpn | keys | .[]' "$current_config" 2>/dev/null | sed 's/"//g' | sort)
+        else
+          current_profiles=$(yq '.vpn | keys | .[]' "$current_config" 2>/dev/null | sed 's/"//g' | sort)
+        fi
+        
+        backup_profiles=$(echo "$backup_profiles" | sed 's/"//g' | sort)
+        
+        # Profiles only in current config
+        local only_current=$(comm -23 <(echo "$current_profiles") <(echo "$backup_profiles"))
+        if [[ -n "$only_current" ]]; then
+          echo "   📝 New profiles since backup:"
+          echo "$only_current" | sed 's/^/     • /'
+        fi
+        
+        # Profiles only in backup
+        local only_backup=$(comm -13 <(echo "$current_profiles") <(echo "$backup_profiles"))
+        if [[ -n "$only_backup" ]]; then
+          echo "   🗑️  Profiles removed since backup:"
+          echo "$only_backup" | sed 's/^/     • /'
+        fi
+      fi
+    else
+      echo "❌ No current config found at $current_config"
+    fi
+  else
+    echo "❌ Failed to decrypt/extract backup"
+    exit 1
+  fi
+}
+
+# ─── Exit early for backup/restore/backup-stats/set-backup ──────────────────
 case "$ACTION" in
-  backup)  backup_cfg; exit 0 ;;
-  restore) restore_cfg; exit 0 ;;
+  backup)      backup_cfg; exit 0 ;;
+  restore)     restore_cfg; exit 0 ;;
+  backup-stats) backup_stats; exit 0 ;;
+  set-backup)  set_backup_path; exit 0 ;;
 esac
 
-# ─── Ab hier nur VPN-Befehle (start/stop/status) ─────────────────────────────
+# ─── From here only VPN commands (start/stop/status) ─────────────────────────
 
 # Common prechecks
 [[ -f "$CONFIG_FILE" ]] || { echo "❌ Config file not found: $CONFIG_FILE" >&2; exit 1; }
 command -v yq &>/dev/null || { echo "❌ 'yq' not found; please install." >&2; exit 1; }
 
-# Erstes Profil wählen, falls keines gesetzt
+# Select first profile if none is set
 if [[ -z "$PROFILE_KEY" ]]; then
   if yq --version 2>&1 | grep -q 'eval'; then
     RAW_KEY=$(yq eval -r '.vpn | keys | .[0]' "$CONFIG_FILE")
@@ -93,7 +292,7 @@ if [[ -z "$PROFILE_KEY" ]]; then
   PROFILE_KEY="${RAW_KEY//\"/}"
 fi
 
-# Pfad aus YAML laden und aufbereiten
+# Load and prepare path from YAML
 if yq --version 2>&1 | grep -q 'eval'; then
   RAW_CONF=$(yq eval -r ".vpn.${PROFILE_KEY}.config" "$CONFIG_FILE" 2>/dev/null)
 else
@@ -110,7 +309,7 @@ RAW_CONF="${RAW_CONF/#\~/$HOME}"
 VPN_CONF=$(eval echo "\"$RAW_CONF\"")
 [[ -f "$VPN_CONF" ]] || { echo "❌ VPN config not found: $VPN_CONF" >&2; exit 1; }
 
-# Laufzeit-Pfade
+# Runtime paths
 USER_ID=$(id -u)
 PID_FILE="/run/user/${USER_ID}/${PROFILE_KEY}.pid"
 LOG_FILE="/tmp/${PROFILE_KEY}.log"
