@@ -190,9 +190,9 @@ self_update(){
   echo "⬇️  Downloading latest version..."
   
   if [[ "$download_tool" == "curl" ]]; then
-    curl -L -o "$temp_dir/vpnctl" "$download_url"
+    curl -sL -o "$temp_dir/vpnctl" "$download_url"
   else
-    wget -O "$temp_dir/vpnctl" "$download_url"
+    wget -q -O "$temp_dir/vpnctl" "$download_url"
   fi
   
   # Verify download
@@ -240,6 +240,9 @@ self_update(){
   
   echo "✅ Successfully updated to version $latest_version"
   echo "   Restart any running VPN connections to use the new version"
+  
+  # Exit to prevent executing old code after self-replacement
+  exit 0
 }
 
 set_backup_path(){
