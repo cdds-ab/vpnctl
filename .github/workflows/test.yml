@@ -70,6 +70,30 @@ jobs:
             coverage/coverage.html
           retention-days: 30
 
+      - name: Auto-update coverage badge
+        if: github.ref == 'refs/heads/master' && matrix.yq-variant == 'go-yq'
+        run: |
+          # Get current coverage percentage
+          coverage=$(jq -r '.overall.percentage' coverage/coverage_summary.json)
+          echo "Current coverage: ${coverage}%"
+          
+          # Update README.md coverage badge
+          sed -i "s/coverage-[0-9]\+%25/coverage-${coverage}%25/g" README.md
+          
+          # Configure git for GitHub Action
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          # Commit and push if there are changes
+          git add README.md
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: auto-update coverage badge to ${coverage}% [skip ci]"
+            git push
+            echo "✅ Coverage badge updated to ${coverage}%"
+          else
+            echo "ℹ️ No coverage changes detected"
+          fi
+
       - name: Comment coverage on PR
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
