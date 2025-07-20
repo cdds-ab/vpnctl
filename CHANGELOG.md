@@ -1,3 +1,10 @@
+## [1.4.3](https://github.com/cdds-ab/vpnctl/compare/v1.4.2...v1.4.3) (2025-07-20)
+
+
+### Bug Fixes
+
+* resolve release_notes unbound variable in self-update ([1e41485](https://github.com/cdds-ab/vpnctl/commit/1e414852e0ea470307032ea720f978ef05b36ed0))
+
 ## [1.4.2](https://github.com/cdds-ab/vpnctl/compare/v1.4.1...v1.4.2) (2025-07-20)
 
 
