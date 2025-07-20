@@ -1,3 +1,10 @@
+## [1.4.4](https://github.com/cdds-ab/vpnctl/compare/v1.4.3...v1.4.4) (2025-07-20)
+
+
+### Bug Fixes
+
+* improve CI security scanner to match pre-commit hook intelligence ([cb6913d](https://github.com/cdds-ab/vpnctl/commit/cb6913d320bc1d64b3c3f2dddf5ed170d345c48e))
+
 ## [1.4.3](https://github.com/cdds-ab/vpnctl/compare/v1.4.2...v1.4.3) (2025-07-20)
 
 
