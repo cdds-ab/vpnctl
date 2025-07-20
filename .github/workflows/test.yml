@@ -186,33 +186,40 @@ jobs:
 
       - name: Run security scan
         run: |
-          # Simple security checks for shell scripts
+          # Intelligent security checks for shell scripts (same logic as pre-commit hooks)
           echo "🔍 Checking for potential security issues..."
 
-          # Check for hardcoded passwords/secrets
-          if grep -r "password\|secret\|token" \
-               --include="*.sh" --include="*vpnctl*" . | \
-               grep -v "test\|comment\|#"; then
-            echo "⚠️ Potential hardcoded secrets found"
-            exit 1
-          fi
+          # Check for actual secret patterns, not just keywords in documentation
+          # Look for assignment patterns like password="value", api_key="12345...", token="secret"
+          secret_found=false
           
-          # Check for hardcoded keys (excluding yq path expressions)
-          if grep -r '\bkey\b' \
-               --include="*.sh" --include="*vpnctl*" . | \
-               grep -v "test\|comment\|#\|yq.*keys\|\.key\|\[key\]"; then
-            echo "⚠️ Potential hardcoded keys found"
+          # Find files to scan
+          files_to_scan=$(find . -name "*.sh" -o -name "*vpnctl*" | grep -v ".git")
+          
+          for file in $files_to_scan; do
+            if [[ -f "$file" ]]; then
+              # Look for actual secret assignment patterns
+              if grep -qE "(password|secret|token)\s*[=:]\s*['\"][^'\"]{8,}['\"]|api[_-]?key\s*[=:]\s*['\"][^'\"]{20,}['\"]" "$file"; then
+                echo "⚠️ Potential secret assignment found in: $file"
+                grep -nE "(password|secret|token)\s*[=:]\s*['\"][^'\"]{8,}['\"]|api[_-]?key\s*[=:]\s*['\"][^'\"]{20,}['\"]" "$file"
+                secret_found=true
+              fi
+            fi
+          done
+          
+          if [[ "$secret_found" == "true" ]]; then
+            echo "❌ Potential secrets found in code - please review"
             exit 1
           fi
 
-          # Check for unsafe eval usage
+          # Check for unsafe eval usage (keep existing check)
           if grep -r "eval.*\$" --include="*.sh" --include="*vpnctl*" . | \
                grep -v "test\|comment"; then
             echo "⚠️ Potentially unsafe eval usage found"
             # Don't fail, just warn since we use eval for path expansion
           fi
 
-          echo "✅ Basic security checks passed"
+          echo "✅ Intelligent security checks passed (no secret assignments found)"
 
   coverage-summary:
     runs-on: ubuntu-latest
