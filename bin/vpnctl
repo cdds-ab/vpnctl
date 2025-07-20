@@ -122,7 +122,8 @@ check_for_updates(){
   # Check for latest release on GitHub - prefer gh CLI, fallback to curl/wget
   local latest_version
   if command -v gh >/dev/null 2>&1; then
-    latest_version=$(gh release view --repo "$GITHUB_REPO" --json tagName --jq '.tagName | sub("^v"; "")' 2>/dev/null)
+    # Add timeout to prevent hanging on gh CLI calls
+    latest_version=$(timeout 3 gh release view --repo "$GITHUB_REPO" --json tagName --jq '.tagName | sub("^v"; "")' 2>/dev/null || echo "")
     # If gh fails (not authenticated), fall back to curl/wget
     if [[ -z "$latest_version" || "$latest_version" == "null" ]]; then
       latest_version=""
@@ -158,9 +159,10 @@ self_update(){
   # Get latest release info - prefer gh CLI
   local latest_version release_notes
   if command -v gh >/dev/null 2>&1; then
-    latest_version=$(gh release view --repo "$GITHUB_REPO" --json tagName --jq '.tagName | sub("^v"; "")' 2>/dev/null)
+    # Add timeout to prevent hanging on gh CLI calls  
+    latest_version=$(timeout 3 gh release view --repo "$GITHUB_REPO" --json tagName --jq '.tagName | sub("^v"; "")' 2>/dev/null || echo "")
     if [[ -n "$latest_version" && "$latest_version" != "null" ]]; then
-      release_notes=$(gh release view --repo "$GITHUB_REPO" --json body --jq '.body' 2>/dev/null | head -5)
+      release_notes=$(timeout 3 gh release view --repo "$GITHUB_REPO" --json body --jq '.body' 2>/dev/null | head -5)
     else
       latest_version=""
     fi

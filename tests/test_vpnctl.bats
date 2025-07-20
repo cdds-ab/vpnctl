@@ -298,3 +298,92 @@ EOF
     [[ "$output" == "vpnctl "* ]]
     [[ "$output" =~ vpnctl[[:space:]]+[0-9]+\.[0-9]+\.[0-9]+ ]]
 }
+
+# ===== CRITICAL INTEGRATION TESTS =====
+# These tests ensure core functionality doesn't hang or break
+
+@test "status command completes without hanging" {
+    # This test catches gh CLI timeout issues
+    run timeout 10 "$BATS_TEST_DIRNAME/../bin/vpnctl" status
+    
+    # Should complete within timeout (not hang)
+    [[ "$status" -ne 124 ]]  # 124 = timeout exit code
+    
+    # Should show status message (success or error, doesn't matter)
+    [[ -n "$output" ]]
+}
+
+@test "status command works with missing config" {
+    # Test with no config file to ensure graceful handling
+    local temp_config_dir=$(mktemp -d)
+    export XDG_CONFIG_HOME="$temp_config_dir"
+    
+    run "$BATS_TEST_DIRNAME/../bin/vpnctl" status
+    
+    # Should fail gracefully, not hang or crash
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Config file not found"* ]]
+    
+    # Cleanup
+    rm -rf "$temp_config_dir"
+    unset XDG_CONFIG_HOME
+}
+
+@test "update check completes without hanging" {
+    # Remove update check file to force update check
+    rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/.vpnctl_update_check" 2>/dev/null || true
+    
+    # This should trigger update check and complete within reasonable time
+    run timeout 15 "$BATS_TEST_DIRNAME/../bin/vpnctl" --version
+    
+    # Should not timeout (hang)
+    [[ "$status" -ne 124 ]]
+    [ "$status" -eq 0 ]
+    [[ "$output" == "vpnctl "* ]]
+}
+
+@test "start command fails gracefully without config" {
+    local temp_config_dir=$(mktemp -d)
+    export XDG_CONFIG_HOME="$temp_config_dir"
+    
+    # Should fail quickly without hanging
+    run timeout 10 "$BATS_TEST_DIRNAME/../bin/vpnctl" start
+    
+    # Should not hang
+    [[ "$status" -ne 124 ]]
+    
+    # Should fail with config error (not hang or crash)
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Config file not found"* ]]
+    
+    # Cleanup
+    rm -rf "$temp_config_dir"
+    unset XDG_CONFIG_HOME
+}
+
+@test "gh CLI timeout protection works" {
+    # This test verifies that gh CLI calls don't hang the script
+    # We can't easily mock gh, but we can verify the script completes
+    
+    # Create a mock config file so other checks pass
+    local temp_config_dir=$(mktemp -d)
+    export XDG_CONFIG_HOME="$temp_config_dir"
+    
+    cat > "$temp_config_dir/vpn_config.yaml" << 'EOF'
+vpn:
+  test:
+    config: "/nonexistent/config.ovpn"
+EOF
+    
+    # Force update check and ensure it completes
+    rm -f "$temp_config_dir/.vpnctl_update_check" 2>/dev/null || true
+    
+    run timeout 20 "$BATS_TEST_DIRNAME/../bin/vpnctl" status
+    
+    # Should complete, not hang indefinitely
+    [[ "$status" -ne 124 ]]  # Not timed out
+    
+    # Cleanup
+    rm -rf "$temp_config_dir"
+    unset XDG_CONFIG_HOME
+}
