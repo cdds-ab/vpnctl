@@ -157,12 +157,12 @@ self_update(){
   echo "🔄 Checking for vpnctl updates..."
   
   # Get latest release info - prefer gh CLI
-  local latest_version release_notes
+  local latest_version release_notes=""
   if command -v gh >/dev/null 2>&1; then
     # Add timeout to prevent hanging on gh CLI calls  
     latest_version=$(timeout 3 gh release view --repo "$GITHUB_REPO" --json tagName --jq '.tagName | sub("^v"; "")' 2>/dev/null || echo "")
     if [[ -n "$latest_version" && "$latest_version" != "null" ]]; then
-      release_notes=$(timeout 3 gh release view --repo "$GITHUB_REPO" --json body --jq '.body' 2>/dev/null | head -5)
+      release_notes=$(timeout 3 gh release view --repo "$GITHUB_REPO" --json body --jq '.body' 2>/dev/null | head -5 || echo "")
     else
       latest_version=""
     fi
