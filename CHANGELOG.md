@@ -1,3 +1,10 @@
+## [1.4.2](https://github.com/cdds-ab/vpnctl/compare/v1.4.1...v1.4.2) (2025-07-20)
+
+
+### Bug Fixes
+
+* prevent gh CLI hanging + add critical integration tests ([81d2a28](https://github.com/cdds-ab/vpnctl/commit/81d2a28412d603dedbe69085fc49a1a0150265c8))
+
 ## [1.4.1](https://github.com/cdds-ab/vpnctl/compare/v1.4.0...v1.4.1) (2025-07-19)
 
 
