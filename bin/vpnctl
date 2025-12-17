@@ -21,7 +21,7 @@ OUTPUT_FILE=""
 INPUT_FILE=""
 BACKUP_PATH=""
 ACTION=""
-CURRENT_VERSION="1.4.4"
+CURRENT_VERSION="1.5.0"
 GITHUB_REPO="cdds-ab/vpnctl"
 UPDATE_CHECK_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/.vpnctl_update_check"
 
@@ -104,6 +104,42 @@ get_backup_file(){
   echo "$default_file"
 }
 
+# Compare two semantic versions (major.minor.patch)
+# Returns: 0 = equal, 1 = v1 > v2, 2 = v1 < v2
+version_compare(){
+  local v1="$1" v2="$2"
+
+  # Strip leading 'v' if present
+  v1="${v1#v}"
+  v2="${v2#v}"
+
+  # If identical, return equal
+  [[ "$v1" == "$v2" ]] && return 0
+
+  # Split into components
+  local IFS='.'
+  read -ra v1_parts <<< "$v1"
+  read -ra v2_parts <<< "$v2"
+
+  # Compare each component (major, minor, patch)
+  for i in 0 1 2; do
+    local p1="${v1_parts[$i]:-0}"
+    local p2="${v2_parts[$i]:-0}"
+
+    # Remove any non-numeric suffix (e.g., -beta, -rc1)
+    p1="${p1%%[^0-9]*}"
+    p2="${p2%%[^0-9]*}"
+
+    if (( p1 > p2 )); then
+      return 1  # v1 > v2
+    elif (( p1 < p2 )); then
+      return 2  # v1 < v2
+    fi
+  done
+
+  return 0  # equal
+}
+
 check_for_updates(){
   # Check if we should skip update check (max once per day)
   if [[ -f "$UPDATE_CHECK_FILE" ]]; then
@@ -144,12 +180,16 @@ check_for_updates(){
   
   # Update the check timestamp
   touch "$UPDATE_CHECK_FILE" 2>/dev/null || true
-  
-  # Compare versions (simple string comparison for semantic versions)
-  if [[ -n "$latest_version" && "$latest_version" != "$CURRENT_VERSION" ]]; then
-    echo "🔄 Update available: $CURRENT_VERSION → $latest_version"
-    echo "   Run 'vpnctl self-update' to update to the latest version"
-    echo ""
+
+  # Compare versions - only notify if latest is actually newer
+  if [[ -n "$latest_version" ]]; then
+    version_compare "$latest_version" "$CURRENT_VERSION"
+    if [[ $? -eq 1 ]]; then
+      # latest_version > CURRENT_VERSION = real upgrade available
+      echo "🔄 Update available: $CURRENT_VERSION → $latest_version"
+      echo "   Run 'vpnctl self-update' to update to the latest version"
+      echo ""
+    fi
   fi
 }
 
@@ -188,12 +228,28 @@ self_update(){
     exit 1
   fi
   
-  if [[ "$latest_version" == "$CURRENT_VERSION" ]]; then
+  # Compare versions using semantic versioning
+  version_compare "$latest_version" "$CURRENT_VERSION"
+  local cmp_result=$?
+
+  if [[ $cmp_result -eq 0 ]]; then
     echo "✅ Already running latest version: $CURRENT_VERSION"
     exit 0
+  elif [[ $cmp_result -eq 2 ]]; then
+    # latest_version < CURRENT_VERSION = would be a downgrade
+    echo "⚠️  You're running a newer version ($CURRENT_VERSION) than the latest release ($latest_version)"
+    echo "   This can happen with development builds or pre-releases."
+    echo ""
+    read -rp "Downgrade to $latest_version? [y/N] " confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+      echo "❌ Downgrade cancelled."
+      exit 0
+    fi
+    echo ""
+    echo "📦 Downgrading from $CURRENT_VERSION to $latest_version..."
+  else
+    echo "📦 Updating from $CURRENT_VERSION to $latest_version..."
   fi
-  
-  echo "📦 Updating from $CURRENT_VERSION to $latest_version..."
   
   # Show release notes if available
   if [[ -n "$release_notes" && "$release_notes" != "null" ]]; then
@@ -487,12 +543,20 @@ if [[ -z "$PROFILE_KEY" ]]; then
 fi
 
 # Load and prepare path from YAML
-if yq --version 2>&1 | grep -q 'eval'; then
+if yq --version 2>&1 | grep -q 'mikefarah\|eval'; then
+  # Go-yq (mikefarah/yq)
   RAW_CONF=$(yq eval -r ".vpn.${PROFILE_KEY}.config" "$CONFIG_FILE" 2>/dev/null)
+  DNS_SERVER=$(yq eval -r ".vpn.${PROFILE_KEY}.dns.server // \"\"" "$CONFIG_FILE" 2>/dev/null)
+  DNS_DOMAIN=$(yq eval -r ".vpn.${PROFILE_KEY}.dns.domain // \"\"" "$CONFIG_FILE" 2>/dev/null)
 else
-  RAW_CONF=$(yq ".vpn.${PROFILE_KEY}.config" "$CONFIG_FILE" 2>/dev/null)
+  # Python-yq (kislyuk/yq) - wraps jq
+  RAW_CONF=$(yq -r ".vpn.${PROFILE_KEY}.config" "$CONFIG_FILE" 2>/dev/null)
   RAW_CONF="${RAW_CONF%\"}"; RAW_CONF="${RAW_CONF#\"}"
   RAW_CONF="${RAW_CONF%\'}"; RAW_CONF="${RAW_CONF#\'}"
+  DNS_SERVER=$(yq -r ".vpn.${PROFILE_KEY}.dns.server // empty" "$CONFIG_FILE" 2>/dev/null || echo "")
+  [[ "$DNS_SERVER" == "null" ]] && DNS_SERVER=""
+  DNS_DOMAIN=$(yq -r ".vpn.${PROFILE_KEY}.dns.domain // empty" "$CONFIG_FILE" 2>/dev/null || echo "")
+  [[ "$DNS_DOMAIN" == "null" ]] && DNS_DOMAIN=""
 fi
 [[ -n "$RAW_CONF" && "$RAW_CONF" != "null" ]] || {
   echo "❌ No config for profile '$PROFILE_KEY' in $CONFIG_FILE" >&2; exit 1
@@ -513,6 +577,41 @@ prepare_sudo(){
     echo "🔒 Requesting sudo credentials..."
     sudo -v || { echo "❌ sudo authentication failed." >&2; exit 1; }
   }
+}
+
+configure_split_dns(){
+  # Skip if no DNS configured for this profile
+  [[ -z "$DNS_SERVER" ]] && return 0
+
+  # Wait for tun device to appear (max 5 seconds)
+  local tun_dev=""
+  for i in {1..10}; do
+    tun_dev=$(ip route 2>/dev/null | grep "via.*dev tun" | head -1 | awk '{for(i=1;i<=NF;i++) if($i=="dev") print $(i+1)}')
+    [[ -n "$tun_dev" ]] && break
+    sleep 0.5
+  done
+
+  if [[ -z "$tun_dev" ]]; then
+    echo "⚠️  Could not detect tun device for Split-DNS"
+    return 1
+  fi
+
+  # Configure DNS server for tun device
+  if resolvectl dns "$tun_dev" "$DNS_SERVER" 2>/dev/null; then
+    echo "🌐 Split-DNS: $tun_dev → $DNS_SERVER"
+  else
+    echo "⚠️  Failed to configure DNS for $tun_dev"
+    return 1
+  fi
+
+  # Configure domain routing if specified
+  if [[ -n "$DNS_DOMAIN" ]]; then
+    if resolvectl domain "$tun_dev" "~${DNS_DOMAIN}" 2>/dev/null; then
+      echo "🌐 Domain routing: *.${DNS_DOMAIN} → $DNS_SERVER"
+    else
+      echo "⚠️  Failed to configure domain routing for $DNS_DOMAIN"
+    fi
+  fi
 }
 
 start_vpn(){
@@ -539,6 +638,9 @@ start_vpn(){
   nohup sudo openvpn --config "$VPN_CONF" >"$LOG_FILE" 2>&1 &
   echo $! >"$PID_FILE"
   echo "✅ Started (PID $(<"$PID_FILE")). Logs at $LOG_FILE"
+
+  # Configure Split-DNS if specified in profile
+  configure_split_dns
 
   if [[ "$DEBUG" == true ]]; then
     echo "--- Debug: streaming logs (Ctrl+C stops debug only) ---"

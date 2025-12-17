@@ -382,8 +382,76 @@ EOF
     
     # Should complete, not hang indefinitely
     [[ "$status" -ne 124 ]]  # Not timed out
-    
+
     # Cleanup
     rm -rf "$temp_config_dir"
     unset XDG_CONFIG_HOME
+}
+
+# ===== VERSION COMPARISON TESTS =====
+# Tests for semantic version comparison function
+
+setup_version_compare() {
+    # Load the version_compare function from vpnctl
+    eval "$(sed -n '/^version_compare()/,/^}/p' "$BATS_TEST_DIRNAME/../bin/vpnctl")"
+}
+
+@test "version_compare: equal versions return 0" {
+    setup_version_compare
+    run version_compare "1.4.4" "1.4.4"
+    [ "$status" -eq 0 ]
+}
+
+@test "version_compare: v1 > v2 returns 1 (major)" {
+    setup_version_compare
+    run version_compare "2.0.0" "1.9.9"
+    [ "$status" -eq 1 ]
+}
+
+@test "version_compare: v1 > v2 returns 1 (minor)" {
+    setup_version_compare
+    run version_compare "1.5.0" "1.4.4"
+    [ "$status" -eq 1 ]
+}
+
+@test "version_compare: v1 > v2 returns 1 (patch)" {
+    setup_version_compare
+    run version_compare "1.4.5" "1.4.4"
+    [ "$status" -eq 1 ]
+}
+
+@test "version_compare: v1 < v2 returns 2 (major)" {
+    setup_version_compare
+    run version_compare "1.0.0" "2.0.0"
+    [ "$status" -eq 2 ]
+}
+
+@test "version_compare: v1 < v2 returns 2 (minor)" {
+    setup_version_compare
+    run version_compare "1.4.4" "1.5.0"
+    [ "$status" -eq 2 ]
+}
+
+@test "version_compare: v1 < v2 returns 2 (patch)" {
+    setup_version_compare
+    run version_compare "1.4.3" "1.4.4"
+    [ "$status" -eq 2 ]
+}
+
+@test "version_compare: handles v prefix" {
+    setup_version_compare
+    run version_compare "v1.5.0" "v1.4.4"
+    [ "$status" -eq 1 ]
+}
+
+@test "version_compare: handles mixed v prefix" {
+    setup_version_compare
+    run version_compare "v1.5.0" "1.4.4"
+    [ "$status" -eq 1 ]
+}
+
+@test "version_compare: handles missing patch version" {
+    setup_version_compare
+    run version_compare "1.5" "1.4.4"
+    [ "$status" -eq 1 ]
 }
